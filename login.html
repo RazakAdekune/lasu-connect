@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LASU Connect Login</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-gray-50 text-gray-900">
+  <main class="mx-auto max-w-5xl px-4 py-12">
+    <h1 class="text-3xl font-semibold">LASU Connect Login</h1>
+    <p class="mt-2 text-sm text-gray-600">Sign in as student or admin.</p>
+
+    <div class="mt-8 grid gap-6 lg:grid-cols-2">
+      <form id="student-login" class="rounded-2xl border bg-white p-6">
+        <h2 class="text-xl font-semibold">Student Login</h2>
+        <div class="mt-4">
+          <label for="student-name" class="mb-2 block text-sm font-medium">Full name</label>
+          <input id="student-name" class="w-full rounded-lg border px-3 py-2">
+        </div>
+        <div class="mt-4">
+          <label for="student-matric" class="mb-2 block text-sm font-medium">Matric number</label>
+          <input id="student-matric" class="w-full rounded-lg border px-3 py-2">
+        </div>
+        <div class="mt-4">
+          <label for="student-faculty" class="mb-2 block text-sm font-medium">Faculty</label>
+          <select id="student-faculty" class="w-full rounded-lg border px-3 py-2"></select>
+        </div>
+        <div class="mt-4">
+          <label for="student-department" class="mb-2 block text-sm font-medium">Department</label>
+          <select id="student-department" class="w-full rounded-lg border px-3 py-2"></select>
+        </div>
+        <div class="mt-4">
+          <label for="student-level" class="mb-2 block text-sm font-medium">Level</label>
+          <select id="student-level" class="w-full rounded-lg border px-3 py-2"></select>
+        </div>
+        <div class="mt-4">
+          <label for="student-semester" class="mb-2 block text-sm font-medium">Semester</label>
+          <select id="student-semester" class="w-full rounded-lg border px-3 py-2"></select>
+        </div>
+        <button type="submit" class="mt-6 w-full rounded-lg bg-black px-4 py-2 text-white">Continue as student</button>
+      </form>
+
+      <form id="admin-login" class="rounded-2xl border bg-white p-6">
+        <h2 class="text-xl font-semibold">Admin Login</h2>
+        <div class="mt-4">
+          <label for="admin-username" class="mb-2 block text-sm font-medium">Username</label>
+          <input id="admin-username" class="w-full rounded-lg border px-3 py-2">
+        </div>
+        <div class="mt-4">
+          <label for="admin-password" class="mb-2 block text-sm font-medium">Password</label>
+          <input id="admin-password" type="password" class="w-full rounded-lg border px-3 py-2">
+        </div>
+        <div class="mt-4">
+          <label for="admin-faculty" class="mb-2 block text-sm font-medium">Faculty</label>
+          <select id="admin-faculty" class="w-full rounded-lg border px-3 py-2"></select>
+        </div>
+        <div class="mt-4">
+          <label for="admin-department" class="mb-2 block text-sm font-medium">Department</label>
+          <select id="admin-department" class="w-full rounded-lg border px-3 py-2"></select>
+        </div>
+        <div class="mt-4 rounded-lg border bg-gray-50 p-3 text-sm">
+          <p class="font-medium">Admin Login Helper</p>
+          <p class="mt-1 text-gray-700">Username: <span id="admin-helper-username" class="font-mono text-xs"></span></p>
+          <p class="text-gray-700">Password: <span id="admin-helper-password" class="font-mono text-xs"></span></p>
+          <button id="admin-helper-fill" type="button" class="mt-2 rounded border border-black px-3 py-1 text-xs">Use these credentials</button>
+        </div>
+        <button type="submit" class="mt-6 w-full rounded-lg border border-black px-4 py-2">Login as admin</button>
+      </form>
+    </div>
+
+    <p id="login-feedback" class="mt-5 text-sm text-red-600"></p>
+  </main>
+
+  <script src="data.js"></script>
+  <script src="admin-accounts.js"></script>
+  <script src="shared.js"></script>
+  <script src="login.js"></script>
+</body>
+</html>

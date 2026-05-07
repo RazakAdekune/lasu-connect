@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LASU Admin Page</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+</head>
+<body class="min-h-screen bg-gray-50 text-gray-900">
+  <main class="mx-auto max-w-6xl px-4 py-8">
+    <header class="mb-6 rounded-xl border bg-white p-4">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 class="text-2xl font-semibold">Admin Page</h1>
+          <p id="admin-scope" class="text-sm text-gray-600"></p>
+        </div>
+        <button id="logout-btn" class="rounded-lg border px-4 py-2 text-sm">Logout</button>
+      </div>
+    </header>
+
+    <section class="mb-6 rounded-xl border bg-white p-4">
+      <h2 class="text-lg font-semibold">Manage Timetable</h2>
+      <form id="timetable-form" class="mt-3 grid gap-3 md:grid-cols-3">
+        <input id="tt-course-code" class="rounded border px-3 py-2" placeholder="Course code">
+        <input id="tt-course-title" class="rounded border px-3 py-2" placeholder="Course title">
+        <select id="tt-day" class="rounded border px-3 py-2">
+          <option>Monday</option><option>Tuesday</option><option>Wednesday</option><option>Thursday</option><option>Friday</option>
+        </select>
+        <select id="tt-venue" class="rounded border px-3 py-2"></select>
+        <select id="tt-level" class="rounded border px-3 py-2"></select>
+        <select id="tt-semester" class="rounded border px-3 py-2"></select>
+        <select id="tt-department" class="rounded border px-3 py-2"></select>
+        <input id="tt-start" type="time" class="rounded border px-3 py-2">
+        <input id="tt-end" type="time" class="rounded border px-3 py-2">
+        <button class="rounded bg-black px-4 py-2 text-white">Add timetable entry</button>
+      </form>
+      <p id="tt-feedback" class="mt-2 text-sm text-gray-700"></p>
+      <div id="timetable-list" class="mt-3 space-y-2"></div>
+    </section>
+
+    <section class="mb-6 rounded-xl border bg-white p-4">
+      <h2 class="text-lg font-semibold">Manage Reports</h2>
+      <div id="report-list" class="mt-3 space-y-3"></div>
+    </section>
+
+    <section class="mb-6 rounded-xl border bg-white p-4">
+      <h2 class="text-lg font-semibold">Publish Announcements</h2>
+      <form id="announcement-form" class="mt-3 grid gap-3 md:grid-cols-2">
+        <input id="announcement-title" class="rounded border px-3 py-2 md:col-span-2" placeholder="Title">
+        <textarea id="announcement-message" rows="3" class="rounded border px-3 py-2 md:col-span-2" placeholder="Message"></textarea>
+        <select id="announcement-level" class="rounded border px-3 py-2"></select>
+        <select id="announcement-semester" class="rounded border px-3 py-2"></select>
+        <select id="announcement-department" class="rounded border px-3 py-2"></select>
+        <button class="rounded bg-black px-4 py-2 text-white md:col-span-2">Publish announcement</button>
+      </form>
+      <p id="announcement-feedback" class="mt-2 text-sm text-gray-700"></p>
+    </section>
+
+    <section class="mb-6 rounded-xl border bg-white p-4">
+      <h2 class="text-lg font-semibold">Location Verification</h2>
+      <p class="mt-1 text-sm text-gray-600">Use this panel to calibrate destination pins. Verified pins are used for routing.</p>
+      <div class="mt-3 grid gap-3 md:grid-cols-2">
+        <div>
+          <label for="location-verify-select" class="mb-1 block text-sm font-medium">Location</label>
+          <select id="location-verify-select" class="w-full rounded border px-3 py-2"></select>
+        </div>
+        <div class="flex items-end">
+          <button id="location-open-google" class="w-full rounded border px-3 py-2 text-sm">Open in Google Maps</button>
+        </div>
+        <div>
+          <label for="location-verify-lat" class="mb-1 block text-sm font-medium">Latitude</label>
+          <input id="location-verify-lat" class="w-full rounded border px-3 py-2" placeholder="6.47...">
+        </div>
+        <div>
+          <label for="location-verify-lng" class="mb-1 block text-sm font-medium">Longitude</label>
+          <input id="location-verify-lng" class="w-full rounded border px-3 py-2" placeholder="3.20...">
+        </div>
+        <div>
+          <label for="location-verify-source" class="mb-1 block text-sm font-medium">Verification Source</label>
+          <input id="location-verify-source" class="w-full rounded border px-3 py-2" placeholder="google_maps_manual_pin">
+        </div>
+        <label class="flex items-center gap-2 pt-7 text-sm">
+          <input id="location-verify-verified" type="checkbox" checked>
+          Mark as verified
+        </label>
+      </div>
+      <div class="mt-3 flex flex-wrap gap-2">
+        <button id="location-verify-save" class="rounded bg-black px-4 py-2 text-sm text-white">Save Pin</button>
+        <button id="location-verify-reset" class="rounded border px-4 py-2 text-sm">Reset to Seed Data</button>
+        <button id="location-delete-custom" class="rounded border border-red-400 px-4 py-2 text-sm text-red-700">Delete Custom Location</button>
+        <button id="location-use-map-pin" class="rounded border px-4 py-2 text-sm">Use Map Pin Coordinates</button>
+      </div>
+      <p id="location-type-hint" class="mt-2 text-xs text-gray-600"></p>
+      <p id="location-verify-feedback" class="mt-2 text-sm text-gray-700"></p>
+      <div class="mt-4 rounded border bg-white p-3">
+        <p class="text-sm font-medium">Add New Location</p>
+        <form id="new-location-form" class="mt-2 grid gap-3 md:grid-cols-2">
+          <div>
+            <label for="new-location-name" class="mb-1 block text-sm font-medium">Location Name</label>
+            <input id="new-location-name" class="w-full rounded border px-3 py-2" placeholder="Example: New Engineering Annex">
+          </div>
+          <div>
+            <label for="new-location-zone" class="mb-1 block text-sm font-medium">Zone</label>
+            <select id="new-location-zone" class="w-full rounded border px-3 py-2"></select>
+          </div>
+          <div>
+            <label for="new-location-next-stop" class="mb-1 block text-sm font-medium">Next Stop</label>
+            <input id="new-location-next-stop" class="w-full rounded border px-3 py-2" placeholder="Nearest stop or gate">
+          </div>
+          <div>
+            <label for="new-location-summary" class="mb-1 block text-sm font-medium">Summary</label>
+            <input id="new-location-summary" class="w-full rounded border px-3 py-2" placeholder="Short description">
+          </div>
+          <div>
+            <label for="new-location-lat" class="mb-1 block text-sm font-medium">Latitude</label>
+            <input id="new-location-lat" class="w-full rounded border px-3 py-2" placeholder="6.47...">
+          </div>
+          <div>
+            <label for="new-location-lng" class="mb-1 block text-sm font-medium">Longitude</label>
+            <input id="new-location-lng" class="w-full rounded border px-3 py-2" placeholder="3.20...">
+          </div>
+          <div>
+            <label for="new-location-source" class="mb-1 block text-sm font-medium">Verification Source</label>
+            <input id="new-location-source" class="w-full rounded border px-3 py-2" placeholder="admin_manual_pin">
+          </div>
+          <div class="flex flex-wrap items-center gap-4 pt-6 text-sm">
+            <label class="flex items-center gap-2">
+              <input id="new-location-verified" type="checkbox" checked>
+              Verified
+            </label>
+            <label class="flex items-center gap-2">
+              <input id="new-location-popular" type="checkbox">
+              Popular (quick access)
+            </label>
+          </div>
+          <div class="md:col-span-2 flex flex-wrap gap-2">
+            <button id="new-location-use-map-pin" type="button" class="rounded border px-4 py-2 text-sm">Use Map Pin Coordinates</button>
+            <button type="submit" class="rounded bg-black px-4 py-2 text-sm text-white">Add Location</button>
+          </div>
+        </form>
+        <p id="new-location-feedback" class="mt-2 text-sm text-gray-700"></p>
+      </div>
+      <div class="mt-3 rounded border bg-gray-50 p-2">
+        <p class="mb-2 text-xs text-gray-600">Click the map or drag the pin to set exact coordinates for the selected location.</p>
+        <div id="admin-pin-map" class="min-h-[340px] rounded border"></div>
+      </div>
+      <div class="mt-3">
+        <p class="text-sm font-medium">Pending Verification</p>
+        <div id="location-unverified-list" class="mt-2 space-y-1 text-sm text-gray-700"></div>
+      </div>
+    </section>
+
+    <section class="rounded-xl border bg-white p-4">
+      <h2 class="text-lg font-semibold">Notifications Flow</h2>
+      <div id="notifications-list" class="mt-3 space-y-2"></div>
+    </section>
+  </main>
+
+  <script src="data.js"></script>
+  <script src="shared.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script src="admin.js"></script>
+</body>
+</html>
