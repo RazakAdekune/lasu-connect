@@ -29,7 +29,7 @@ const CAMPUS_BOUNDS = {
 };
 
 let mapInstance = null;
-let routeLayer = null;git push -u origin main
+let routeLayer = null;
 let startMarker = null;
 let destinationMarker = null;
 let liveMarker = null;
