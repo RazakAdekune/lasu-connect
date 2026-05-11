@@ -22,21 +22,7 @@ const locationVerifyVerified = document.getElementById("location-verify-verified
 const locationVerifyFeedback = document.getElementById("location-verify-feedback");
 const locationUnverifiedList = document.getElementById("location-unverified-list");
 const locationUseMapPinButton = document.getElementById("location-use-map-pin");
-const locationDeleteCustomButton = document.getElementById("location-delete-custom");
-const locationTypeHint = document.getElementById("location-type-hint");
 const adminPinMapElement = document.getElementById("admin-pin-map");
-const newLocationForm = document.getElementById("new-location-form");
-const newLocationName = document.getElementById("new-location-name");
-const newLocationZone = document.getElementById("new-location-zone");
-const newLocationNextStop = document.getElementById("new-location-next-stop");
-const newLocationSummary = document.getElementById("new-location-summary");
-const newLocationLat = document.getElementById("new-location-lat");
-const newLocationLng = document.getElementById("new-location-lng");
-const newLocationSource = document.getElementById("new-location-source");
-const newLocationVerified = document.getElementById("new-location-verified");
-const newLocationPopular = document.getElementById("new-location-popular");
-const newLocationUseMapPin = document.getElementById("new-location-use-map-pin");
-const newLocationFeedback = document.getElementById("new-location-feedback");
 const esc = window.LASU_SHARED.escapeHtml || ((value) => String(value ?? ""));
 
 let adminMap = null;
@@ -131,16 +117,6 @@ function optionLabel(location) {
   return `${location.name} (${verifiedLabel}, ${campusLabel})`;
 }
 
-function locationZones() {
-  const zones = new Set();
-  allLocations().forEach((location) => {
-    if (location?.zone) zones.add(String(location.zone));
-  });
-  if (!zones.size) zones.add("Custom");
-  if (!zones.has("Custom")) zones.add("Custom");
-  return Array.from(zones).sort((a, b) => a.localeCompare(b));
-}
-
 function mapCenter() {
   const points = allLocations().filter(hasCoordinates).filter(isWithinCampus);
   if (!points.length) return { lat: 6.473789, lng: 3.199954 };
@@ -193,7 +169,6 @@ function refreshAdminLocationMarkers() {
       locationVerifySelect.value = location.name;
       locationVerifyFeedback.textContent = "";
       fillLocationVerifierForm(location);
-      renderLocationTypeMeta(location);
       refreshAdminLocationMarkers();
       setAdminEditMarker(location.lat, location.lng, true);
     });
@@ -238,104 +213,10 @@ function populateInputs() {
     .join("");
   document.getElementById("tt-level").innerHTML = window.LASU_DATA.levels.map((l) => `<option value="${l}">${l} Level</option>`).join("");
   document.getElementById("tt-semester").innerHTML = window.LASU_DATA.semesters.map((semester) => `<option value="${semester}">${semester}</option>`).join("");
-  document.getElementById("tt-department").innerHTML = `<option value="${scope().department}">${scope().department}</option>`;
+  document.getElementById("tt-department").innerHTML = `<option value="${esc(scope().department)}">${esc(scope().department)}</option>`;
   document.getElementById("announcement-level").innerHTML = [`<option value="all">All levels</option>`, ...window.LASU_DATA.levels.map((l) => `<option value="${l}">${l} Level</option>`)].join("");
   document.getElementById("announcement-semester").innerHTML = [`<option value="all">All semesters</option>`, ...window.LASU_DATA.semesters.map((semester) => `<option value="${semester}">${semester}</option>`)].join("");
-  document.getElementById("announcement-department").innerHTML = `<option value="${scope().department}">${scope().department}</option>`;
-  renderNewLocationZoneOptions();
-}
-
-function renderNewLocationZoneOptions() {
-  if (!newLocationZone) return;
-  const previous = newLocationZone.value;
-  newLocationZone.innerHTML = locationZones().map((zone) => `<option value="${esc(zone)}">${esc(zone)}</option>`).join("");
-  if (previous && locationZones().includes(previous)) {
-    newLocationZone.value = previous;
-  }
-}
-
-function setNewLocationLatLng(lat, lng) {
-  if (!newLocationLat || !newLocationLng) return;
-  newLocationLat.value = lat.toFixed(7);
-  newLocationLng.value = lng.toFixed(7);
-}
-
-function useMapPinForNewLocation() {
-  if (!adminEditMarker) {
-    newLocationFeedback.textContent = "Map pin is not ready yet.";
-    return;
-  }
-  const pin = adminEditMarker.getLatLng();
-  setNewLocationLatLng(pin.lat, pin.lng);
-  newLocationFeedback.textContent = "Loaded coordinates from map pin.";
-}
-
-function resetNewLocationForm() {
-  if (!newLocationForm) return;
-  newLocationForm.reset();
-  if (newLocationSource) newLocationSource.value = "admin_manual_pin";
-  if (newLocationVerified) newLocationVerified.checked = true;
-  renderNewLocationZoneOptions();
-}
-
-function addNewLocation(event) {
-  event.preventDefault();
-  if (!newLocationForm) return;
-  newLocationFeedback.textContent = "";
-  window.LASU_SHARED.clearFormErrors(newLocationForm);
-
-  const payload = {
-    name: String(newLocationName?.value || "").trim(),
-    zone: String(newLocationZone?.value || "").trim(),
-    nextStop: String(newLocationNextStop?.value || "").trim() || "Destination",
-    summary: String(newLocationSummary?.value || "").trim() || "Custom campus location.",
-    lat: Number(newLocationLat?.value || NaN),
-    lng: Number(newLocationLng?.value || NaN),
-    popular: Boolean(newLocationPopular?.checked),
-    verified: Boolean(newLocationVerified?.checked),
-    verifiedSource: String(newLocationSource?.value || "").trim() || "admin_manual_pin"
-  };
-
-  let valid = true;
-  if (!payload.name) {
-    window.LASU_SHARED.setFieldError(newLocationForm, "new-location-name", "Location name is required.");
-    valid = false;
-  }
-  if (!payload.zone) {
-    window.LASU_SHARED.setFieldError(newLocationForm, "new-location-zone", "Zone is required.");
-    valid = false;
-  }
-  if (!Number.isFinite(payload.lat)) {
-    window.LASU_SHARED.setFieldError(newLocationForm, "new-location-lat", "Valid latitude is required.");
-    valid = false;
-  }
-  if (!Number.isFinite(payload.lng)) {
-    window.LASU_SHARED.setFieldError(newLocationForm, "new-location-lng", "Valid longitude is required.");
-    valid = false;
-  }
-  if (!valid) {
-    window.LASU_SHARED.showToast("Please fix new location form errors.", "error");
-    return;
-  }
-
-  const result = window.LASU_SHARED.addCustomLocation(payload);
-  if (!result.ok) {
-    newLocationFeedback.textContent = result.message || "Could not add location.";
-    window.LASU_SHARED.showToast(result.message || "Could not add location.", "error");
-    return;
-  }
-
-  newLocationFeedback.textContent = `${result.location.name} added successfully.`;
-  window.LASU_SHARED.showToast(`${result.location.name} added.`, "success");
-  populateInputs();
-  renderLocationVerifier();
-  refreshAdminLocationMarkers();
-  if (locationVerifySelect) {
-    locationVerifySelect.value = result.location.name;
-    fillLocationVerifierForm(result.location);
-    syncMapWithSelectedLocation(true);
-  }
-  resetNewLocationForm();
+  document.getElementById("announcement-department").innerHTML = `<option value="${esc(scope().department)}">${esc(scope().department)}</option>`;
 }
 
 function fillLocationVerifierForm(location) {
@@ -350,37 +231,21 @@ function renderUnverifiedLocations() {
   if (!locationUnverifiedList) return;
   const pending = allLocations().filter((location) => !location.verified || !isWithinCampus(location));
   locationUnverifiedList.innerHTML = pending.length
-    ? pending.map((location) => `<div class="rounded border px-2 py-1">${optionLabel(location)}</div>`).join("")
+    ? pending.map((location) => `<div class="rounded border px-2 py-1">${esc(optionLabel(location))}</div>`).join("")
     : `<p class="text-sm text-green-700">All locations are verified and inside campus bounds.</p>`;
-}
-
-function renderLocationTypeMeta(location) {
-  if (locationTypeHint) {
-    locationTypeHint.textContent = location?.isCustom
-      ? "Custom location selected. You can delete this location."
-      : "Default LASU location selected. Deletion is disabled.";
-  }
-  if (locationDeleteCustomButton) {
-    const canDelete = Boolean(location?.isCustom);
-    locationDeleteCustomButton.disabled = !canDelete;
-    locationDeleteCustomButton.classList.toggle("opacity-60", !canDelete);
-    locationDeleteCustomButton.classList.toggle("cursor-not-allowed", !canDelete);
-  }
 }
 
 function renderLocationVerifier() {
   if (!locationVerifySelect) return;
   const previousSelection = locationVerifySelect.value;
   const options = allLocations()
-    .map((location) => `<option value="${location.name}">${optionLabel(location)}</option>`)
+    .map((location) => `<option value="${esc(location.name)}">${esc(optionLabel(location))}</option>`)
     .join("");
   locationVerifySelect.innerHTML = options;
   locationVerifySelect.value = previousSelection && findLocation(previousSelection)
     ? previousSelection
     : (allLocations()[0]?.name || "");
-  const selected = findLocation(locationVerifySelect.value);
-  fillLocationVerifierForm(selected);
-  renderLocationTypeMeta(selected);
+  fillLocationVerifierForm(findLocation(locationVerifySelect.value));
   renderUnverifiedLocations();
   syncMapWithSelectedLocation(false);
 }
@@ -427,31 +292,6 @@ function resetLocationVerification() {
   populateInputs();
 }
 
-function deleteCustomLocation() {
-  const selectedName = locationVerifySelect?.value || "";
-  if (!selectedName) return;
-
-  const selected = findLocation(selectedName);
-  if (!selected || !selected.isCustom) {
-    locationVerifyFeedback.textContent = "Only custom locations can be deleted.";
-    window.LASU_SHARED.showToast("Default LASU locations cannot be deleted.", "info");
-    return;
-  }
-
-  const result = window.LASU_SHARED.removeCustomLocation(selectedName);
-  if (!result.ok) {
-    locationVerifyFeedback.textContent = result.message || "Could not delete custom location.";
-    window.LASU_SHARED.showToast(result.message || "Could not delete custom location.", "error");
-    return;
-  }
-
-  locationVerifyFeedback.textContent = `${result.removedName} deleted successfully.`;
-  window.LASU_SHARED.showToast(`${result.removedName} deleted.`, "success");
-  populateInputs();
-  renderLocationVerifier();
-  refreshAdminLocationMarkers();
-}
-
 function useMapPinCoordinates() {
   if (!adminEditMarker) {
     locationVerifyFeedback.textContent = "Map pin is not ready yet.";
@@ -479,7 +319,7 @@ function openLocationInGoogleMaps() {
 function renderTimetable() {
   const rows = visibleTimetable();
   document.getElementById("timetable-list").innerHTML = rows.length
-    ? rows.map((r) => `<div class="rounded border p-2 text-sm">${r.courseCode} - ${r.courseTitle} | ${r.day} ${window.LASU_SHARED.formatTime(r.start)}-${window.LASU_SHARED.formatTime(r.end)} | ${r.level} | ${r.semester} | ${r.location}</div>`).join("")
+    ? rows.map((r) => `<div class="rounded border p-2 text-sm">${esc(r.courseCode)} - ${esc(r.courseTitle)} | ${esc(r.day)} ${window.LASU_SHARED.formatTime(r.start)}-${window.LASU_SHARED.formatTime(r.end)} | ${esc(r.level)} | ${esc(r.semester)} | ${esc(r.location)}</div>`).join("")
     : `<p class="text-sm text-gray-600">No timetable entries yet for this department.</p>`;
 }
 
@@ -487,17 +327,17 @@ function renderReports() {
   const reports = visibleReports().sort((a, b) => b.id - a.id);
   document.getElementById("report-list").innerHTML = reports.length ? reports.map((r) => `
     <article class="rounded border p-3">
-      <p class="font-medium">Report #${r.id} - ${r.type}</p>
-      <p class="mt-1 text-xs text-gray-600">${r.studentFaculty} | ${r.studentDepartment} | ${r.studentLevel || "Level not set"} | ${r.studentSemester || "Semester not set"}</p>
-      <p class="text-sm text-gray-700">${r.description}</p>
-      <p class="mt-1 text-xs text-gray-600">${r.location} | ${r.status}</p>
+      <p class="font-medium">Report #${r.id} - ${esc(r.type)}</p>
+      <p class="mt-1 text-xs text-gray-600">${esc(r.studentFaculty)} | ${esc(r.studentDepartment)} | ${esc(r.studentLevel || "Level not set")} | ${esc(r.studentSemester || "Semester not set")}</p>
+      <p class="text-sm text-gray-700">${esc(r.description)}</p>
+      <p class="mt-1 text-xs text-gray-600">${esc(r.location)} | ${esc(r.status)}</p>
       <div class="mt-2 grid gap-2 md:grid-cols-3">
         <select class="report-status rounded border px-2 py-1" data-id="${r.id}">
           <option value="Pending" ${r.status === "Pending" ? "selected" : ""}>Pending</option>
           <option value="Under review" ${r.status === "Under review" ? "selected" : ""}>Under review</option>
           <option value="Resolved" ${r.status === "Resolved" ? "selected" : ""}>Resolved</option>
         </select>
-        <input class="report-response rounded border px-2 py-1 md:col-span-2" data-id="${r.id}" value="${(r.adminResponse || "").replace(/"/g, "&quot;")}" placeholder="Admin response">
+        <input class="report-response rounded border px-2 py-1 md:col-span-2" data-id="${r.id}" value="${esc(r.adminResponse || "")}" placeholder="Admin response">
       </div>
       <label class="mt-2 flex items-center gap-2 text-sm">
         <input type="checkbox" class="report-broadcast" data-id="${r.id}" ${r.broadcast ? "checked" : ""}>
@@ -536,7 +376,7 @@ function renderNotifications() {
   });
   items.sort((a, b) => String(b.time).localeCompare(String(a.time)));
   document.getElementById("notifications-list").innerHTML = items.length
-    ? items.map((n) => `<div class="rounded border p-2 text-sm"><span class="font-medium">${n.source}:</span> ${n.message} <span class="text-xs text-gray-500">(${n.time})</span></div>`).join("")
+    ? items.map((n) => `<div class="rounded border p-2 text-sm"><span class="font-medium">${esc(n.source)}:</span> ${esc(n.message)} <span class="text-xs text-gray-500">(${esc(n.time)})</span></div>`).join("")
     : `<p class="text-sm text-gray-600">No notifications yet.</p>`;
 }
 
@@ -679,7 +519,6 @@ function bindActions() {
       locationVerifyFeedback.textContent = "";
       const selected = findLocation(locationVerifySelect.value);
       fillLocationVerifierForm(selected);
-      renderLocationTypeMeta(selected);
       syncMapWithSelectedLocation(true);
     });
   }
@@ -704,15 +543,6 @@ function bindActions() {
   if (locationUseMapPinButton) {
     locationUseMapPinButton.addEventListener("click", useMapPinCoordinates);
   }
-  if (locationDeleteCustomButton) {
-    locationDeleteCustomButton.addEventListener("click", deleteCustomLocation);
-  }
-  if (newLocationUseMapPin) {
-    newLocationUseMapPin.addEventListener("click", useMapPinForNewLocation);
-  }
-  if (newLocationForm) {
-    newLocationForm.addEventListener("submit", addNewLocation);
-  }
 }
 
 renderHeader();
@@ -723,4 +553,3 @@ renderReports();
 renderNotifications();
 renderLocationVerifier();
 initializeAdminPinMap();
-resetNewLocationForm();

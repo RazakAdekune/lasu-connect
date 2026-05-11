@@ -1,4 +1,4 @@
-const auth = window.LASU_SHARED.requireRole("student");
+﻿const auth = window.LASU_SHARED.requireRole("student");
 if (!auth) throw new Error("Student role required");
 
 const defaults = {
@@ -14,12 +14,16 @@ const routeDestinationSelect = document.getElementById("route-destination");
 const MAP_LIVE_OPTION_VALUE = "__live_location__";
 const routeVerificationHint = document.getElementById("route-verification-hint");
 const liveLocationStatus = document.getElementById("live-location-status");
-const notificationsBadge = document.getElementById("notifications-badge");
-const notificationsMeta = document.getElementById("notifications-meta");
-const markNotificationsReadButton = document.getElementById("mark-notifications-read");
-const timetableSummary = document.getElementById("timetable-summary");
-const notificationsTabButton = document.querySelector('.student-tab[data-view-target="notifications"]');
+const refreshLiveLocationButton = document.getElementById("refresh-live-location-button");
 const esc = window.LASU_SHARED.escapeHtml || ((value) => String(value ?? ""));
+const LIVE_LOCATION_MAX_AGE_MS = 5000;
+const LIVE_LOCATION_TIMEOUT_MS = 20000;
+const ACCEPTABLE_LIVE_ACCURACY_METERS = 120;
+const MAX_LIVE_ACCURACY_METERS = 1000;
+const LIVE_LOCATION_REFRESH_TIMEOUT_MS = 30000;
+const GOOD_LIVE_ACCURACY_METERS = 60;
+const LIVE_LOCATION_OUTSIDE_CAMPUS_REJECT_ACCURACY_METERS = 80;
+const CAMPUS_BUFFER_DEGREES = 0.01;
 
 const CAMPUS_BOUNDS = {
   minLat: 6.4620,
@@ -34,20 +38,9 @@ let startMarker = null;
 let destinationMarker = null;
 let liveMarker = null;
 let livePosition = null;
-let liveAccuracyMeters = null;
-let liveTimestampMs = 0;
+let liveAccuracy = null;
 let locationWatchId = null;
 const locationMarkers = new Map();
-let lastLiveErrorToastAt = 0;
-let lastLiveErrorMessage = "";
-let currentView = "timetable";
-let lastStateSignature = "";
-let lastNotificationAlertSignature = "";
-
-const LIVE_LOCATION_FRESH_MS = 15000;
-const LIVE_LOCATION_GOOD_ACCURACY_METERS = 250;
-const LIVE_LOCATION_ACCEPTABLE_ACCURACY_METERS = 300;
-const LIVE_ERROR_TOAST_COOLDOWN_MS = 12000;
 
 function allLocations() {
   return window.LASU_SHARED.getLocations();
@@ -64,6 +57,85 @@ function isWithinCampus(location) {
     location.lat <= CAMPUS_BOUNDS.maxLat &&
     location.lng >= CAMPUS_BOUNDS.minLng &&
     location.lng <= CAMPUS_BOUNDS.maxLng;
+}
+
+function isWithinCampusPoint(lat, lng, padding = 0) {
+  return lat >= (CAMPUS_BOUNDS.minLat - padding) &&
+    lat <= (CAMPUS_BOUNDS.maxLat + padding) &&
+    lng >= (CAMPUS_BOUNDS.minLng - padding) &&
+    lng <= (CAMPUS_BOUNDS.maxLng + padding);
+}
+
+function liveLocationLabel() {
+  if (liveAccuracy === null) return "My Live Location";
+  return `My Live Location (+/-${Math.round(liveAccuracy)}m)`;
+}
+
+function setLiveLocationStatus(message, tone = "neutral") {
+  if (!liveLocationStatus) return;
+  const toneClass = tone === "good"
+    ? "text-green-700"
+    : tone === "warn"
+      ? "text-amber-700"
+      : tone === "error"
+        ? "text-red-700"
+        : "text-slate";
+  liveLocationStatus.className = `text-xs ${toneClass}`;
+  liveLocationStatus.textContent = `Live location: ${message}`;
+}
+
+function applyLivePosition(position, source = "watch") {
+  const lat = Number(position?.coords?.latitude);
+  const lng = Number(position?.coords?.longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    return false;
+  }
+
+  const accuracy = Number(position?.coords?.accuracy);
+  const hasAccuracy = Number.isFinite(accuracy) && accuracy > 0;
+  if (hasAccuracy && accuracy > MAX_LIVE_ACCURACY_METERS) {
+    setLiveLocationStatus(`weak signal (+/-${Math.round(accuracy)}m), waiting for better fix`, "warn");
+    return false;
+  }
+
+  const insideCampus = isWithinCampusPoint(lat, lng, 0);
+  const nearCampus = isWithinCampusPoint(lat, lng, CAMPUS_BUFFER_DEGREES);
+  if (!nearCampus && hasAccuracy && accuracy > LIVE_LOCATION_OUTSIDE_CAMPUS_REJECT_ACCURACY_METERS) {
+    setLiveLocationStatus(`off-campus drift detected (+/-${Math.round(accuracy)}m), recalibrating`, "warn");
+    return false;
+  }
+
+  const shouldAccept = !livePosition ||
+    !hasAccuracy ||
+    liveAccuracy === null ||
+    accuracy <= ACCEPTABLE_LIVE_ACCURACY_METERS ||
+    accuracy < liveAccuracy ||
+    (insideCampus && !isWithinCampusPoint(livePosition.lat, livePosition.lng, 0));
+
+  if (!shouldAccept) {
+    return false;
+  }
+
+  livePosition = { lat, lng };
+  liveAccuracy = hasAccuracy ? accuracy : liveAccuracy;
+
+  if (mapInstance) {
+    if (!liveMarker) {
+      liveMarker = window.L.marker([lat, lng]).addTo(mapInstance);
+    } else {
+      liveMarker.setLatLng([lat, lng]);
+    }
+    liveMarker.bindPopup(liveLocationLabel());
+  }
+
+  if (liveAccuracy !== null && liveAccuracy <= GOOD_LIVE_ACCURACY_METERS) {
+    setLiveLocationStatus(`locked at +/-${Math.round(liveAccuracy)}m (${source})`, "good");
+  } else if (liveAccuracy !== null) {
+    setLiveLocationStatus(`accuracy +/-${Math.round(liveAccuracy)}m (${source})`, "warn");
+  } else {
+    setLiveLocationStatus(`fix received (${source})`, "neutral");
+  }
+  return true;
 }
 
 function mappableLocations() {
@@ -86,116 +158,6 @@ function markerStyle(location, active = false) {
     return { radius: 6, color: "#111827", weight: 2, fillColor: "#111827", fillOpacity: 0.75 };
   }
   return { radius: 6, color: "#92400e", weight: 2, fillColor: "#b45309", fillOpacity: 0.9 };
-}
-
-function setLiveStatus(text) {
-  if (liveLocationStatus) {
-    liveLocationStatus.textContent = text;
-  }
-}
-
-function accuracyText(accuracy) {
-  if (!Number.isFinite(accuracy)) return "unknown";
-  if (accuracy < 1000) return `~${Math.round(accuracy)} m`;
-  return `~${(accuracy / 1000).toFixed(1)} km`;
-}
-
-function isLiveFresh() {
-  return Boolean(livePosition) && (Date.now() - liveTimestampMs) <= LIVE_LOCATION_FRESH_MS;
-}
-
-function isAccuracyAcceptable(accuracy) {
-  if (!Number.isFinite(accuracy)) return false;
-  return accuracy <= LIVE_LOCATION_ACCEPTABLE_ACCURACY_METERS;
-}
-
-function shouldAutoRouteFromLive() {
-  return Boolean(livePosition) &&
-    isLiveFresh() &&
-    isAccuracyAcceptable(liveAccuracyMeters) &&
-    isWithinCampus(livePosition);
-}
-
-function maybeShowLiveError(message) {
-  const now = Date.now();
-  const sameMessage = message === lastLiveErrorMessage;
-  if (sameMessage && (now - lastLiveErrorToastAt) < LIVE_ERROR_TOAST_COOLDOWN_MS) {
-    return;
-  }
-  lastLiveErrorMessage = message;
-  lastLiveErrorToastAt = now;
-  window.LASU_SHARED.showToast(message, "error");
-}
-
-function setLivePositionFromCoords(coords) {
-  livePosition = { lat: coords.latitude, lng: coords.longitude };
-  liveAccuracyMeters = Number.isFinite(coords.accuracy) ? coords.accuracy : null;
-  liveTimestampMs = Date.now();
-  const quality = !Number.isFinite(liveAccuracyMeters)
-    ? "unknown accuracy"
-    : liveAccuracyMeters <= LIVE_LOCATION_GOOD_ACCURACY_METERS
-      ? "good accuracy"
-      : "low accuracy";
-  setLiveStatus(`Live location: ${quality} (${accuracyText(liveAccuracyMeters)})`);
-}
-
-function updateLiveMarker() {
-  if (!mapInstance || !livePosition) return;
-  if (!liveMarker) {
-    liveMarker = window.L.marker([livePosition.lat, livePosition.lng]).addTo(mapInstance).bindPopup("My Live Location");
-  } else {
-    liveMarker.setLatLng([livePosition.lat, livePosition.lng]);
-  }
-}
-
-function fetchCurrentPosition(options) {
-  return new Promise((resolve, reject) => {
-    navigator.geolocation.getCurrentPosition(resolve, reject, options);
-  });
-}
-
-async function resolveReliableLivePosition(forceFresh = false) {
-  if (!navigator.geolocation) {
-    return { ok: false, message: "Geolocation is not available on this device." };
-  }
-
-  if (!forceFresh && shouldAutoRouteFromLive()) {
-    return { ok: true, position: { ...livePosition }, accuracy: liveAccuracyMeters };
-  }
-
-  try {
-    const current = await fetchCurrentPosition({
-      enableHighAccuracy: true,
-      timeout: 25000,
-      maximumAge: 0
-    });
-    setLivePositionFromCoords(current.coords);
-    updateLiveMarker();
-    if (!isAccuracyAcceptable(liveAccuracyMeters)) {
-      if (!Number.isFinite(liveAccuracyMeters)) {
-        return {
-          ok: false,
-          message: "Live location accuracy is unavailable. Enable precise location and try again."
-        };
-      }
-      return {
-        ok: false,
-        message: `Live location is too inaccurate (${accuracyText(liveAccuracyMeters)}). Enable precise location and try again.`
-      };
-    }
-    if (!isWithinCampus(livePosition)) {
-      return {
-        ok: false,
-        message: "Live location appears outside LASU campus bounds. Check device location settings and try again."
-      };
-    }
-    return { ok: true, position: { ...livePosition }, accuracy: liveAccuracyMeters };
-  } catch (_error) {
-    if (shouldAutoRouteFromLive()) {
-      return { ok: true, position: { ...livePosition }, accuracy: liveAccuracyMeters };
-    }
-    return { ok: false, message: "Could not get live location. Select a start location manually." };
-  }
 }
 
 function student() {
@@ -227,129 +189,6 @@ function myReports() {
   return state.issues.filter(isOwnReport);
 }
 
-function dayOrder(day) {
-  const order = {
-    Monday: 1,
-    Tuesday: 2,
-    Wednesday: 3,
-    Thursday: 4,
-    Friday: 5,
-    Saturday: 6,
-    Sunday: 7
-  };
-  return order[day] || 99;
-}
-
-function timeToMinutes(value) {
-  if (!value || !value.includes(":")) return 0;
-  const [h, m] = value.split(":").map(Number);
-  return (Number.isFinite(h) ? h : 0) * 60 + (Number.isFinite(m) ? m : 0);
-}
-
-function sortedTimetableRows(rows) {
-  return rows.slice().sort((a, b) => {
-    const dayDiff = dayOrder(a.day) - dayOrder(b.day);
-    if (dayDiff !== 0) return dayDiff;
-    return timeToMinutes(a.start) - timeToMinutes(b.start);
-  });
-}
-
-function nextClassRow(rows) {
-  if (!rows.length) return null;
-  const now = new Date();
-  const jsToName = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-  const todayName = jsToName[now.getDay()];
-  const todayOrder = dayOrder(todayName);
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
-
-  let best = null;
-  let bestScore = Number.POSITIVE_INFINITY;
-  rows.forEach((row) => {
-    const rowDay = dayOrder(row.day);
-    const rowStartMinutes = timeToMinutes(row.start);
-    let dayDelta = rowDay - todayOrder;
-    if (dayDelta < 0 || (dayDelta === 0 && rowStartMinutes < nowMinutes)) {
-      dayDelta += 7;
-    }
-    const score = dayDelta * 1440 + (rowStartMinutes - nowMinutes);
-    if (score < bestScore) {
-      bestScore = score;
-      best = row;
-    }
-  });
-  return best;
-}
-
-function notificationStorageKey() {
-  const s = student();
-  return `${window.LASU_DATA.storageKey}-student-notification-cursor-v1:${String(s.id)}:${String(s.matricNo)}:${String(s.department)}:${String(s.level)}:${String(s.semester)}`;
-}
-
-function notificationKey(notification) {
-  return `${notification.source}|${notification.time}|${notification.text}`;
-}
-
-function getNotificationCursor() {
-  return window.localStorage.getItem(notificationStorageKey()) || "";
-}
-
-function setNotificationCursor(value) {
-  window.localStorage.setItem(notificationStorageKey(), value || "");
-}
-
-function ensureNotificationCursorInitialized() {
-  const key = notificationStorageKey();
-  if (window.localStorage.getItem(key) !== null) return;
-  const rows = myNotifications();
-  setNotificationCursor(rows[0] ? notificationKey(rows[0]) : "");
-}
-
-function unreadNotificationsCount(rows) {
-  const cursor = getNotificationCursor();
-  if (!rows.length) return 0;
-  if (!cursor) return rows.length;
-  const cursorIndex = rows.findIndex((row) => notificationKey(row) === cursor);
-  if (cursorIndex === -1) return rows.length;
-  return cursorIndex;
-}
-
-function markNotificationsRead() {
-  const rows = myNotifications();
-  setNotificationCursor(rows[0] ? notificationKey(rows[0]) : "");
-}
-
-function updateNotificationsBadge(unreadCount) {
-  if (!notificationsBadge) return;
-  if (unreadCount > 0) {
-    notificationsBadge.classList.remove("hidden");
-    notificationsBadge.textContent = String(unreadCount);
-  } else {
-    notificationsBadge.classList.add("hidden");
-    notificationsBadge.textContent = "0";
-  }
-}
-
-function maybeAlertNewNotifications(rows, unreadCount) {
-  if (currentView === "notifications" || unreadCount <= 0) return;
-  const signature = `${notificationKey(rows[0])}|${unreadCount}`;
-  if (signature === lastNotificationAlertSignature) return;
-  lastNotificationAlertSignature = signature;
-  window.LASU_SHARED.showToast(`You have ${unreadCount} new notification${unreadCount === 1 ? "" : "s"}.`, "info", 3600);
-}
-
-function stateSignature(payload) {
-  const issueSig = (payload.issues || [])
-    .map((item) => `${item.id}-${item.status}-${item.respondedAt || item.createdAt}`)
-    .join("|");
-  const timetableSig = (payload.timetable || [])
-    .map((item) => `${item.id}-${item.updatedAt}`)
-    .join("|");
-  const announcementSig = (payload.announcements || [])
-    .map((item) => `${item.id}-${item.createdAt}`)
-    .join("|");
-  return `${payload.issues?.length || 0};${payload.timetable?.length || 0};${payload.announcements?.length || 0};${issueSig};${timetableSig};${announcementSig}`;
-}
-
 function myNotifications() {
   const s = student();
   const notes = [];
@@ -370,49 +209,9 @@ function renderHeader() {
 }
 
 function renderTimetable() {
-  const rows = sortedTimetableRows(myTimetable());
-  const todayName = new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(new Date());
-  const todayCount = rows.filter((row) => row.day === todayName).length;
-  const nextRow = nextClassRow(rows);
-
-  if (timetableSummary) {
-    timetableSummary.innerHTML = rows.length
-      ? `
-        <div class="rounded-xl border border-line bg-wash p-4">
-          <p class="text-xs uppercase tracking-[0.18em] text-mist">Total Classes</p>
-          <p class="mt-2 text-2xl font-semibold">${rows.length}</p>
-        </div>
-        <div class="rounded-xl border border-line bg-wash p-4">
-          <p class="text-xs uppercase tracking-[0.18em] text-mist">Today</p>
-          <p class="mt-2 text-2xl font-semibold">${todayCount}</p>
-        </div>
-        <div class="rounded-xl border border-line bg-wash p-4">
-          <p class="text-xs uppercase tracking-[0.18em] text-mist">Next Class</p>
-          <p class="mt-2 text-sm font-semibold">${nextRow ? `${esc(nextRow.courseCode)} (${esc(nextRow.day)})` : "None"}</p>
-          <p class="mt-1 text-xs text-slate">${nextRow ? `${window.LASU_SHARED.formatTime(nextRow.start)} at ${esc(nextRow.location)}` : "No upcoming class yet."}</p>
-        </div>
-      `
-      : "";
-  }
-
+  const rows = myTimetable();
   document.getElementById("timetable-list").innerHTML = rows.length
-    ? rows.map((row) => `
-      <article class="rounded-xl border border-line bg-white p-4 shadow-sm">
-        <div class="flex flex-wrap items-start justify-between gap-2">
-          <div>
-            <p class="text-xs uppercase tracking-[0.18em] text-mist">${esc(row.day)}</p>
-            <h3 class="mt-1 text-base font-semibold">${esc(row.courseCode)}</h3>
-            <p class="text-sm text-slate">${esc(row.courseTitle)}</p>
-          </div>
-          <span class="rounded-full bg-ink px-3 py-1 text-xs font-medium text-white">${window.LASU_SHARED.formatTime(row.start)} - ${window.LASU_SHARED.formatTime(row.end)}</span>
-        </div>
-        <div class="mt-3 flex flex-wrap gap-2 text-xs">
-          <span class="rounded-full border border-line px-2 py-1">${esc(row.level)} Level</span>
-          <span class="rounded-full border border-line px-2 py-1">${esc(row.semester)}</span>
-          <span class="rounded-full border border-line px-2 py-1">${esc(row.location)}</span>
-        </div>
-      </article>
-    `).join("")
+    ? rows.map((t) => `<div class="rounded border p-2 text-sm">${esc(t.courseCode)} - ${esc(t.courseTitle)} | ${esc(t.day)} ${window.LASU_SHARED.formatTime(t.start)}-${window.LASU_SHARED.formatTime(t.end)} | ${esc(t.location)}</div>`).join("")
     : `<p class="text-sm text-gray-600">No timetable entries for your department, level, and semester yet.</p>`;
 }
 
@@ -423,76 +222,15 @@ function renderReports() {
     : `<p class="text-sm text-gray-600">You have not submitted any report yet.</p>`;
 }
 
-function renderNotifications(options = {}) {
-  const { alertOnNew = false } = options;
+function renderNotifications() {
   const rows = myNotifications();
-  const unreadCount = unreadNotificationsCount(rows);
-  updateNotificationsBadge(unreadCount);
-  if (notificationsMeta) {
-    notificationsMeta.textContent = `${rows.length} update${rows.length === 1 ? "" : "s"} • ${unreadCount} unread`;
-  }
-  if (alertOnNew) {
-    maybeAlertNewNotifications(rows, unreadCount);
-  }
   document.getElementById("notifications-list").innerHTML = rows.length
-    ? rows.map((n, index) => `
-      <div class="rounded border p-3 text-sm ${index < unreadCount ? "border-ink bg-wash" : ""}">
-        <div class="flex items-center justify-between gap-2">
-          <span class="font-medium">${n.source}</span>
-          ${index < unreadCount ? `<span class="rounded-full bg-ink px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-white">new</span>` : ""}
-        </div>
-        <p class="mt-1">${n.text}</p>
-        <p class="mt-1 text-xs text-gray-500">${n.time}</p>
-      </div>
-    `).join("")
-    : `<p class="text-sm text-gray-600">No notifications yet.</p>`;
-}
-
-function syncStateFromStorageAndRefresh(alertOnNew = true) {
-  const refreshed = window.LASU_SHARED.loadState(defaults);
-  const refreshedSignature = stateSignature(refreshed);
-  if (refreshedSignature === lastStateSignature) return;
-
-  state.issues = refreshed.issues;
-  state.timetable = refreshed.timetable;
-  state.announcements = refreshed.announcements;
-  lastStateSignature = refreshedSignature;
-
-  renderTimetable();
-  renderReports();
-  renderNotifications({ alertOnNew });
-  if (currentView === "map") {
-    renderMap();
-  }
-}
-
-function renderNotifications(options = {}) {
-  const { alertOnNew = false } = options;
-  const rows = myNotifications();
-  const unreadCount = unreadNotificationsCount(rows);
-  updateNotificationsBadge(unreadCount);
-  if (notificationsMeta) {
-    notificationsMeta.textContent = `${rows.length} update${rows.length === 1 ? "" : "s"} | ${unreadCount} unread`;
-  }
-  if (alertOnNew) {
-    maybeAlertNewNotifications(rows, unreadCount);
-  }
-  document.getElementById("notifications-list").innerHTML = rows.length
-    ? rows.map((n, index) => `
-      <div class="rounded border p-3 text-sm ${index < unreadCount ? "border-ink bg-wash" : ""}">
-        <div class="flex items-center justify-between gap-2">
-          <span class="font-medium">${esc(n.source)}</span>
-          ${index < unreadCount ? `<span class="rounded-full bg-ink px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-white">new</span>` : ""}
-        </div>
-        <p class="mt-1">${esc(n.text)}</p>
-        <p class="mt-1 text-xs text-gray-500">${esc(n.time)}</p>
-      </div>
-    `).join("")
+    ? rows.map((n) => `<div class="rounded border p-2 text-sm"><span class="font-medium">${esc(n.source)}:</span> ${esc(n.text)} <span class="text-xs text-gray-500">(${esc(n.time)})</span></div>`).join("")
     : `<p class="text-sm text-gray-600">No notifications yet.</p>`;
 }
 
 function populateForm() {
-  document.getElementById("issue-type").innerHTML = window.LASU_DATA.issueTypes.map((t) => `<option value="${t}">${t}</option>`).join("");
+  document.getElementById("issue-type").innerHTML = window.LASU_DATA.issueTypes.map((t) => `<option value="${esc(t)}">${esc(t)}</option>`).join("");
   document.getElementById("issue-location").innerHTML = allLocations().map((l) => `<option value="${esc(l.name)}">${esc(l.name)}</option>`).join("");
 }
 
@@ -556,30 +294,74 @@ function initializeLeafletMap() {
 }
 
 function startLiveLocationWatch() {
+  if (!window.isSecureContext) {
+    setLiveLocationStatus("requires HTTPS or localhost for GPS access", "error");
+    return;
+  }
   if (!navigator.geolocation) {
-    setLiveStatus("Live location: not supported by this browser/device.");
+    setLiveLocationStatus("not supported in this browser", "error");
     return;
   }
   if (locationWatchId !== null) return;
-  setLiveStatus("Live location: acquiring GPS fix...");
+  setLiveLocationStatus("acquiring GPS fix...");
   locationWatchId = navigator.geolocation.watchPosition(
     (position) => {
-      setLivePositionFromCoords(position.coords);
-      if (!isWithinCampus(livePosition)) {
-        setLiveStatus(`Live location: outside LASU bounds (${accuracyText(liveAccuracyMeters)}).`);
-      } else if (!isAccuracyAcceptable(liveAccuracyMeters)) {
-        setLiveStatus(`Live location: low accuracy (${accuracyText(liveAccuracyMeters)}).`);
-      }
-      updateLiveMarker();
-      if (routeStartSelect.value === MAP_LIVE_OPTION_VALUE && shouldAutoRouteFromLive()) {
+      const accepted = applyLivePosition(position, "watch");
+      if (accepted && routeStartSelect.value === MAP_LIVE_OPTION_VALUE) {
         drawSelectedRoute();
       }
     },
-    () => {
-      setLiveStatus("Live location: permission denied or unavailable.");
+    (error) => {
+      if (error && error.code === 1) {
+        setLiveLocationStatus("permission denied, allow location in browser settings", "error");
+        window.LASU_SHARED.showToast("Live location permission denied. Select a start location manually.", "error");
+      } else if (error && error.code === 2) {
+        setLiveLocationStatus("position unavailable, check network/GPS and retry", "warn");
+      } else if (error && error.code === 3) {
+        setLiveLocationStatus("location request timed out, retrying...", "warn");
+      }
     },
-    { enableHighAccuracy: true, maximumAge: 0, timeout: 25000 }
+    { enableHighAccuracy: true, maximumAge: LIVE_LOCATION_MAX_AGE_MS, timeout: LIVE_LOCATION_TIMEOUT_MS }
   );
+}
+
+async function refreshLiveLocation(triggerRoute = true) {
+  if (!window.isSecureContext) {
+    setLiveLocationStatus("requires HTTPS or localhost for GPS access", "error");
+    return false;
+  }
+  if (!navigator.geolocation) {
+    setLiveLocationStatus("not supported in this browser", "error");
+    return false;
+  }
+  setLiveLocationStatus("refreshing GPS fix...");
+  try {
+    const currentPosition = await new Promise((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, reject, {
+      enableHighAccuracy: true,
+      timeout: LIVE_LOCATION_REFRESH_TIMEOUT_MS,
+      maximumAge: 0
+    }));
+    const accepted = applyLivePosition(currentPosition, "refresh");
+    if (!accepted) {
+      setLiveLocationStatus("refresh received but accuracy is still weak", "warn");
+      return false;
+    }
+    if (triggerRoute && routeStartSelect.value === MAP_LIVE_OPTION_VALUE) {
+      drawSelectedRoute();
+    }
+    return true;
+  } catch (error) {
+    if (error && error.code === 1) {
+      setLiveLocationStatus("permission denied, allow location in browser settings", "error");
+    } else if (error && error.code === 2) {
+      setLiveLocationStatus("position unavailable, move outdoors and retry", "warn");
+    } else if (error && error.code === 3) {
+      setLiveLocationStatus("refresh timed out, retry", "warn");
+    } else {
+      setLiveLocationStatus("refresh failed", "warn");
+    }
+    return false;
+  }
 }
 
 function toRad(v) {
@@ -643,6 +425,9 @@ function renderMap() {
       drawSelectedRoute();
     });
   });
+  if (!livePosition) {
+    setLiveLocationStatus("acquiring GPS fix...");
+  }
   startLiveLocationWatch();
   drawSelectedRoute();
 }
@@ -657,32 +442,32 @@ async function drawSelectedRoute() {
   let startPoint = null;
   let startName = routeStartSelect.value;
   if (routeStartSelect.value === MAP_LIVE_OPTION_VALUE) {
-    const resolved = await resolveReliableLivePosition(false);
-    if (!resolved.ok) {
-      maybeShowLiveError(resolved.message);
-      setLiveStatus(`Live location: ${resolved.message}`);
-      return;
+    if (!livePosition) {
+      const gotLivePosition = await refreshLiveLocation(false);
+      if (!gotLivePosition) {
+        window.LASU_SHARED.showToast("Could not get a reliable live location. Try refresh or select a start location manually.", "error");
+        return;
+      }
     }
-    startPoint = { ...resolved.position };
+    if (!livePosition) return;
+    startPoint = { ...livePosition };
     startName = "My Live Location";
-    updateLiveMarker();
-    if (Number.isFinite(resolved.accuracy) && resolved.accuracy > LIVE_LOCATION_GOOD_ACCURACY_METERS) {
-      window.LASU_SHARED.showToast(`Live location accuracy is low (${accuracyText(resolved.accuracy)}).`, "info");
-    }
+    if (!liveMarker) liveMarker = window.L.marker([startPoint.lat, startPoint.lng]).addTo(mapInstance);
+    else liveMarker.setLatLng([startPoint.lat, startPoint.lng]);
+    liveMarker.bindPopup(liveLocationLabel());
   } else {
     const selectedStart = getLocationByName(routeStartSelect.value);
     if (!selectedStart || typeof selectedStart.lat !== "number" || typeof selectedStart.lng !== "number") return;
     startPoint = { lat: selectedStart.lat, lng: selectedStart.lng };
-    setLiveStatus("Live location: select 'My Live Location' to use device GPS.");
   }
 
   if (!startMarker) startMarker = window.L.marker([startPoint.lat, startPoint.lng]).addTo(mapInstance);
   else startMarker.setLatLng([startPoint.lat, startPoint.lng]);
-  startMarker.bindPopup(`Start: ${startName}`);
+  startMarker.bindPopup(`Start: ${esc(startName)}`);
 
   if (!destinationMarker) destinationMarker = window.L.marker([destination.lat, destination.lng]).addTo(mapInstance);
   else destinationMarker.setLatLng([destination.lat, destination.lng]);
-  destinationMarker.bindPopup(`Destination: ${destination.name}`);
+  destinationMarker.bindPopup(`Destination: ${esc(destination.name)}`);
 
   highlightDestination(destination.name);
   if (routeLayer) mapInstance.removeLayer(routeLayer);
@@ -728,17 +513,12 @@ async function drawSelectedRoute() {
 }
 
 function setActiveView(viewName) {
-  currentView = viewName;
   document.querySelectorAll(".student-view").forEach((section) => section.classList.toggle("hidden", section.id !== `view-${viewName}`));
   document.querySelectorAll(".student-tab").forEach((button) => {
     const active = button.dataset.viewTarget === viewName;
     button.classList.toggle("bg-ink", active);
     button.classList.toggle("text-white", active);
   });
-  if (viewName === "notifications") {
-    markNotificationsRead();
-    renderNotifications();
-  }
   if (viewName === "map") {
     renderMap();
     if (mapInstance) window.setTimeout(() => mapInstance.invalidateSize(), 150);
@@ -809,36 +589,26 @@ function bindEvents() {
     }
   });
   document.getElementById("draw-route-button").addEventListener("click", drawSelectedRoute);
+  if (refreshLiveLocationButton) {
+    refreshLiveLocationButton.addEventListener("click", () => {
+      refreshLiveLocation(true);
+    });
+  }
   document.getElementById("open-google-maps-button").addEventListener("click", () => {
     const destination = getLocationByName(routeDestinationSelect.value);
     if (!destination) return;
     const query = encodeURIComponent(`${destination.name}, Lagos State University Ojo`);
     window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, "_blank", "noopener");
   });
-  if (markNotificationsReadButton) {
-    markNotificationsReadButton.addEventListener("click", () => {
-      markNotificationsRead();
-      renderNotifications();
-      window.LASU_SHARED.showToast("Notifications marked as read.", "success");
-    });
-  }
   routeStartSelect.addEventListener("change", drawSelectedRoute);
   routeDestinationSelect.addEventListener("change", drawSelectedRoute);
-
-  window.addEventListener("storage", (event) => {
-    if (event.key === window.LASU_DATA.storageKey) {
-      syncStateFromStorageAndRefresh(true);
-    }
-  });
 }
 
 renderHeader();
 populateForm();
-ensureNotificationCursorInitialized();
-lastStateSignature = stateSignature(state);
 bindEvents();
 renderTimetable();
 renderReports();
-renderNotifications({ alertOnNew: false });
+renderNotifications();
 setActiveView("timetable");
-window.setInterval(() => syncStateFromStorageAndRefresh(true), 12000);
+

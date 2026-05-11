@@ -2,7 +2,6 @@ window.LASU_SHARED = (function createSharedHelpers() {
   const STORAGE_KEY = window.LASU_DATA.storageKey;
   const AUTH_KEY = "lasu-connect-auth-v1";
   const LOCATION_OVERRIDES_KEY = `${STORAGE_KEY}-location-overrides-v1`;
-  const CUSTOM_LOCATIONS_KEY = `${STORAGE_KEY}-custom-locations-v1`;
 
   function clone(value) {
     return JSON.parse(JSON.stringify(value));
@@ -114,7 +113,12 @@ window.LASU_SHARED = (function createSharedHelpers() {
   }
 
   function saveState(state) {
-    const base = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "{}");
+    let base = {};
+    try {
+      base = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "{}") || {};
+    } catch (_error) {
+      base = {};
+    }
     base.issues = state.issues;
     base.timetable = state.timetable;
     base.announcements = state.announcements;
@@ -130,19 +134,6 @@ window.LASU_SHARED = (function createSharedHelpers() {
     }
   }
 
-  function loadCustomLocations() {
-    try {
-      const parsed = JSON.parse(window.localStorage.getItem(CUSTOM_LOCATIONS_KEY) || "[]");
-      return Array.isArray(parsed) ? parsed : [];
-    } catch (_error) {
-      return [];
-    }
-  }
-
-  function saveCustomLocations(locations) {
-    window.localStorage.setItem(CUSTOM_LOCATIONS_KEY, JSON.stringify(locations));
-  }
-
   function normalizeLocation(location) {
     return {
       ...location,
@@ -153,107 +144,14 @@ window.LASU_SHARED = (function createSharedHelpers() {
 
   function getLocations() {
     const baseLocations = Array.isArray(window.LASU_DATA.locations) ? window.LASU_DATA.locations : [];
-    const customLocations = loadCustomLocations();
     const overrides = loadLocationOverrides();
-    const mergedLocations = [];
-    const seen = new Set();
-
-    const locationsWithSource = [
-      ...baseLocations.map((location) => ({ ...location, __source: "base" })),
-      ...customLocations.map((location) => ({ ...location, __source: "custom" }))
-    ];
-
-    locationsWithSource.forEach((location) => {
-      if (!location || typeof location.name !== "string") return;
-      const trimmedName = location.name.trim();
-      if (!trimmedName) return;
-      const key = trimmedName.toLowerCase();
-      if (seen.has(key)) return;
-      seen.add(key);
-      mergedLocations.push({ ...location, name: trimmedName, isCustom: location.__source === "custom" });
-    });
-
-    return mergedLocations.map((location) => {
-      const override = overrides[location.name];
+    return baseLocations.map((baseLocation) => {
+      const override = overrides[baseLocation.name];
       if (!override || typeof override !== "object") {
-        return normalizeLocation({ ...location });
+        return normalizeLocation({ ...baseLocation });
       }
-      return normalizeLocation({ ...location, ...override });
+      return normalizeLocation({ ...baseLocation, ...override });
     });
-  }
-
-  function addCustomLocation(locationInput) {
-    const name = String(locationInput?.name || "").trim();
-    const zone = String(locationInput?.zone || "").trim();
-    const nextStop = String(locationInput?.nextStop || "Destination").trim() || "Destination";
-    const summary = String(locationInput?.summary || "Custom campus location.").trim() || "Custom campus location.";
-    const lat = Number(locationInput?.lat);
-    const lng = Number(locationInput?.lng);
-    const popular = Boolean(locationInput?.popular);
-    const verified = Boolean(locationInput?.verified);
-    const verifiedSource = String(locationInput?.verifiedSource || (verified ? "admin_custom_pin" : "admin_custom_unverified")).trim();
-
-    if (!name) {
-      return { ok: false, message: "Location name is required." };
-    }
-    if (!zone) {
-      return { ok: false, message: "Location zone is required." };
-    }
-    if (!Number.isFinite(lat) || lat < -90 || lat > 90) {
-      return { ok: false, message: "Latitude must be a valid number between -90 and 90." };
-    }
-    if (!Number.isFinite(lng) || lng < -180 || lng > 180) {
-      return { ok: false, message: "Longitude must be a valid number between -180 and 180." };
-    }
-
-    const existing = getLocations().some((location) => String(location.name || "").toLowerCase() === name.toLowerCase());
-    if (existing) {
-      return { ok: false, message: "A location with this name already exists." };
-    }
-
-    const customLocations = loadCustomLocations();
-    const customLocation = normalizeLocation({
-      name,
-      zone,
-      lat,
-      lng,
-      nextStop,
-      summary,
-      popular,
-      verified,
-      verifiedSource
-    });
-    customLocations.push(customLocation);
-    saveCustomLocations(customLocations);
-    return { ok: true, location: { ...customLocation, isCustom: true } };
-  }
-
-  function removeCustomLocation(nameInput) {
-    const name = String(nameInput || "").trim();
-    if (!name) {
-      return { ok: false, message: "Location name is required." };
-    }
-
-    const baseLocations = Array.isArray(window.LASU_DATA.locations) ? window.LASU_DATA.locations : [];
-    const isSeedLocation = baseLocations.some((location) =>
-      String(location?.name || "").trim().toLowerCase() === name.toLowerCase()
-    );
-    if (isSeedLocation) {
-      return { ok: false, message: "Default LASU locations cannot be deleted." };
-    }
-
-    const customLocations = loadCustomLocations();
-    const index = customLocations.findIndex((location) =>
-      String(location?.name || "").trim().toLowerCase() === name.toLowerCase()
-    );
-    if (index === -1) {
-      return { ok: false, message: "Custom location not found." };
-    }
-
-    const [removed] = customLocations.splice(index, 1);
-    saveCustomLocations(customLocations);
-    clearLocationOverride(removed.name);
-    return { ok: true, removedName: removed.name };
   }
 
   function saveLocationOverride(name, overridePatch) {
@@ -388,7 +286,6 @@ window.LASU_SHARED = (function createSharedHelpers() {
   return {
     AUTH_KEY,
     clone,
-    escapeHtml,
     loadAuth,
     requireRole,
     getDepartmentsForFaculty,
@@ -397,8 +294,6 @@ window.LASU_SHARED = (function createSharedHelpers() {
     loadState,
     saveState,
     getLocations,
-    addCustomLocation,
-    removeCustomLocation,
     saveLocationOverride,
     clearLocationOverride,
     logout,
@@ -407,6 +302,7 @@ window.LASU_SHARED = (function createSharedHelpers() {
     setFormLoading,
     clearFormErrors,
     setFieldError,
+    escapeHtml,
     isValidTimeRange,
     matchesFacultyDepartment,
     matchesStudentScope,
