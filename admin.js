@@ -9,7 +9,7 @@ const defaults = {
   announcements: window.LASU_DATA.announcements
 };
 
-const state = window.LASU_SHARED.loadState(defaults);
+let state = window.LASU_SHARED.loadState(defaults);
 const timetableForm = document.getElementById("timetable-form");
 const announcementForm = document.getElementById("announcement-form");
 const timetableFeedback = document.getElementById("tt-feedback");
@@ -553,3 +553,19 @@ renderReports();
 renderNotifications();
 renderLocationVerifier();
 initializeAdminPinMap();
+
+window.LASU_SHARED.syncStateWithCloud(defaults, (syncedState) => {
+  state = syncedState;
+  populateInputs();
+  renderTimetable();
+  renderReports();
+  renderNotifications();
+  renderLocationVerifier();
+  initializeAdminPinMap();
+}).then((result) => {
+  if (result?.enabled && result?.error) {
+    window.LASU_SHARED.showToast("Supabase sync unavailable. Using local data.", "info");
+  } else if (result?.enabled && result?.changed) {
+    window.LASU_SHARED.showToast("Synced admin data from Supabase.", "success");
+  }
+});

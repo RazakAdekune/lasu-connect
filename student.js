@@ -6,7 +6,7 @@ const defaults = {
   timetable: window.LASU_DATA.timetable,
   announcements: window.LASU_DATA.announcements
 };
-const state = window.LASU_SHARED.loadState(defaults);
+let state = window.LASU_SHARED.loadState(defaults);
 const reportForm = document.getElementById("report-form");
 const reportFeedback = document.getElementById("report-feedback");
 const routeStartSelect = document.getElementById("route-start");
@@ -611,4 +611,20 @@ renderTimetable();
 renderReports();
 renderNotifications();
 setActiveView("timetable");
+
+window.LASU_SHARED.syncStateWithCloud(defaults, (syncedState) => {
+  state = syncedState;
+  renderTimetable();
+  renderReports();
+  renderNotifications();
+  if (!document.getElementById("view-map").classList.contains("hidden")) {
+    renderMap();
+  }
+}).then((result) => {
+  if (result?.enabled && result?.error) {
+    window.LASU_SHARED.showToast("Supabase sync unavailable. Using local data.", "info");
+  } else if (result?.enabled && result?.changed) {
+    window.LASU_SHARED.showToast("Synced student data from Supabase.", "success");
+  }
+});
 

@@ -2,6 +2,13 @@ window.LASU_SHARED = (function createSharedHelpers() {
   const STORAGE_KEY = window.LASU_DATA.storageKey;
   const AUTH_KEY = "lasu-connect-auth-v1";
   const LOCATION_OVERRIDES_KEY = `${STORAGE_KEY}-location-overrides-v1`;
+  const SUPABASE_STATE_TABLE = "app_state";
+  const SUPABASE_STATE_ID = "global";
+  const CLOUD_SYNC_DEBOUNCE_MS = 450;
+
+  let pendingCloudSyncTimer = null;
+  let pendingCloudSnapshot = null;
+  let cloudSyncInFlight = false;
 
   function clone(value) {
     return JSON.parse(JSON.stringify(value));
@@ -14,6 +21,126 @@ window.LASU_SHARED = (function createSharedHelpers() {
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#39;");
+  }
+
+  function getSupabaseConfig() {
+    const raw = window.LASU_SUPABASE_CONFIG && typeof window.LASU_SUPABASE_CONFIG === "object"
+      ? window.LASU_SUPABASE_CONFIG
+      : {};
+    const url = String(raw.url || "").trim().replace(/\/+$/g, "");
+    const apiKey = String(raw.anonKey || raw.publishableKey || "").trim();
+    return {
+      url,
+      apiKey,
+      enabled: Boolean(url && apiKey)
+    };
+  }
+
+  function isSupabaseEnabled() {
+    return getSupabaseConfig().enabled;
+  }
+
+  async function supabaseRest(pathWithQuery, method = "GET", body = null, extraHeaders = {}) {
+    const config = getSupabaseConfig();
+    if (!config.enabled) {
+      return { data: null, error: "supabase_not_configured" };
+    }
+    try {
+      const options = {
+        method,
+        headers: {
+          apikey: config.apiKey,
+          Accept: "application/json"
+        }
+      };
+      Object.assign(options.headers, extraHeaders);
+      if (body !== null) {
+        options.headers["Content-Type"] = "application/json";
+        options.body = JSON.stringify(body);
+      }
+      const response = await fetch(`${config.url}/rest/v1/${pathWithQuery}`, options);
+      if (!response.ok) {
+        const errorText = await response.text();
+        return { data: null, error: errorText || `http_${response.status}` };
+      }
+      if (response.status === 204) {
+        return { data: null, error: null };
+      }
+      const json = await response.json();
+      return { data: json, error: null };
+    } catch (error) {
+      return { data: null, error: error?.message || "network_error" };
+    }
+  }
+
+  function readLocalBaseState() {
+    try {
+      const parsed = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "{}");
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch (_error) {
+      return {};
+    }
+  }
+
+  function readCloudSnapshotFromLocal() {
+    const base = readLocalBaseState();
+    return {
+      issues: Array.isArray(base.issues) ? base.issues : [],
+      timetable: Array.isArray(base.timetable) ? base.timetable : [],
+      announcements: Array.isArray(base.announcements) ? base.announcements : [],
+      locationOverrides: loadLocationOverrides()
+    };
+  }
+
+  function queueCloudSync(snapshot) {
+    if (!isSupabaseEnabled()) {
+      return;
+    }
+    pendingCloudSnapshot = {
+      issues: Array.isArray(snapshot.issues) ? clone(snapshot.issues) : [],
+      timetable: Array.isArray(snapshot.timetable) ? clone(snapshot.timetable) : [],
+      announcements: Array.isArray(snapshot.announcements) ? clone(snapshot.announcements) : [],
+      locationOverrides: snapshot.locationOverrides && typeof snapshot.locationOverrides === "object"
+        ? clone(snapshot.locationOverrides)
+        : {}
+    };
+    if (pendingCloudSyncTimer) {
+      window.clearTimeout(pendingCloudSyncTimer);
+    }
+    pendingCloudSyncTimer = window.setTimeout(() => {
+      pendingCloudSyncTimer = null;
+      flushCloudSync();
+    }, CLOUD_SYNC_DEBOUNCE_MS);
+  }
+
+  async function flushCloudSync() {
+    if (cloudSyncInFlight || !pendingCloudSnapshot || !isSupabaseEnabled()) {
+      return;
+    }
+    cloudSyncInFlight = true;
+    const snapshot = pendingCloudSnapshot;
+    pendingCloudSnapshot = null;
+    const payload = [{
+      id: SUPABASE_STATE_ID,
+      issues: snapshot.issues,
+      timetable: snapshot.timetable,
+      announcements: snapshot.announcements,
+      location_overrides: snapshot.locationOverrides
+    }];
+    const { error } = await supabaseRest(
+      `${SUPABASE_STATE_TABLE}?on_conflict=id`,
+      "POST",
+      payload,
+      { Prefer: "resolution=merge-duplicates,return=minimal" }
+    );
+    if (error) {
+      // Keep local UX smooth; leave cloud retry for the next local change.
+      pendingCloudSnapshot = snapshot;
+    }
+    cloudSyncInFlight = false;
+    if (pendingCloudSnapshot) {
+      flushCloudSync();
+    }
   }
 
   function loadAuth() {
@@ -101,7 +228,7 @@ window.LASU_SHARED = (function createSharedHelpers() {
       announcements: clone(defaults.announcements)
     });
     try {
-      const raw = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "{}");
+      const raw = readLocalBaseState();
       return normalizeState({
         issues: Array.isArray(raw.issues) ? raw.issues : fallback.issues,
         timetable: Array.isArray(raw.timetable) ? raw.timetable : fallback.timetable,
@@ -113,16 +240,17 @@ window.LASU_SHARED = (function createSharedHelpers() {
   }
 
   function saveState(state) {
-    let base = {};
-    try {
-      base = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "{}") || {};
-    } catch (_error) {
-      base = {};
-    }
+    const base = readLocalBaseState();
     base.issues = state.issues;
     base.timetable = state.timetable;
     base.announcements = state.announcements;
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(base));
+    queueCloudSync({
+      issues: state.issues,
+      timetable: state.timetable,
+      announcements: state.announcements,
+      locationOverrides: loadLocationOverrides()
+    });
   }
 
   function loadLocationOverrides() {
@@ -162,6 +290,7 @@ window.LASU_SHARED = (function createSharedHelpers() {
     const current = overrides[name] && typeof overrides[name] === "object" ? overrides[name] : {};
     overrides[name] = { ...current, ...overridePatch };
     window.localStorage.setItem(LOCATION_OVERRIDES_KEY, JSON.stringify(overrides));
+    queueCloudSync(readCloudSnapshotFromLocal());
   }
 
   function clearLocationOverride(name) {
@@ -171,6 +300,58 @@ window.LASU_SHARED = (function createSharedHelpers() {
     const overrides = loadLocationOverrides();
     delete overrides[name];
     window.localStorage.setItem(LOCATION_OVERRIDES_KEY, JSON.stringify(overrides));
+    queueCloudSync(readCloudSnapshotFromLocal());
+  }
+
+  async function syncStateWithCloud(defaults, applyState) {
+    if (!isSupabaseEnabled()) {
+      return { enabled: false, changed: false, state: loadState(defaults), error: null };
+    }
+    const query = `${SUPABASE_STATE_TABLE}?id=eq.${encodeURIComponent(SUPABASE_STATE_ID)}&select=issues,timetable,announcements,location_overrides`;
+    const { data, error } = await supabaseRest(query, "GET");
+    if (error) {
+      return { enabled: true, changed: false, state: loadState(defaults), error };
+    }
+
+    const row = Array.isArray(data) && data.length ? data[0] : null;
+    if (!row) {
+      queueCloudSync(readCloudSnapshotFromLocal());
+      return { enabled: true, changed: false, state: loadState(defaults), error: null };
+    }
+
+    const nextBase = {
+      ...readLocalBaseState(),
+      issues: Array.isArray(row.issues) ? row.issues : [],
+      timetable: Array.isArray(row.timetable) ? row.timetable : [],
+      announcements: Array.isArray(row.announcements) ? row.announcements : []
+    };
+    const cloudOverrides = row.location_overrides && typeof row.location_overrides === "object"
+      ? row.location_overrides
+      : {};
+    const currentBase = readLocalBaseState();
+    const currentOverrides = loadLocationOverrides();
+    const changed = JSON.stringify({
+      issues: currentBase.issues || [],
+      timetable: currentBase.timetable || [],
+      announcements: currentBase.announcements || [],
+      location_overrides: currentOverrides
+    }) !== JSON.stringify({
+      issues: nextBase.issues,
+      timetable: nextBase.timetable,
+      announcements: nextBase.announcements,
+      location_overrides: cloudOverrides
+    });
+
+    if (changed) {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(nextBase));
+      window.localStorage.setItem(LOCATION_OVERRIDES_KEY, JSON.stringify(cloudOverrides));
+    }
+
+    const syncedState = normalizeState(nextBase);
+    if (changed && typeof applyState === "function") {
+      applyState(syncedState);
+    }
+    return { enabled: true, changed, state: syncedState, error: null };
   }
 
   function logout() {
@@ -293,6 +474,9 @@ window.LASU_SHARED = (function createSharedHelpers() {
     getDefaultSemester,
     loadState,
     saveState,
+    isSupabaseEnabled,
+    getSupabaseConfig,
+    syncStateWithCloud,
     getLocations,
     saveLocationOverride,
     clearLocationOverride,

@@ -6,108 +6,231 @@
   <title>LASU Admin Page</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ['"Space Grotesk"', 'sans-serif'],
+            sans: ['Inter', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          },
+          colors: {
+            campus: {
+              950: '#0b1530',
+              900: '#0f1f47',
+              800: '#15296b',
+              700: '#1d3a8f',
+              600: '#2050c4',
+              500: '#2f6bef',
+              400: '#5b8bf5',
+            },
+            signal: '#fbbf24',
+          },
+          boxShadow: {
+            card: '0 20px 50px -12px rgba(15, 31, 71, 0.18)',
+            'card-lg': '0 30px 70px -15px rgba(15, 31, 71, 0.25)',
+          },
+        }
+      }
+    };
+  </script>
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .route-line {
+      height: 4px;
+      background: linear-gradient(90deg, #fbbf24 0%, #2f6bef 45%, #15296b 100%);
+      border-radius: 999px;
+    }
+    .bg-grid {
+      background-image:
+        linear-gradient(rgba(15, 31, 71, 0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(15, 31, 71, 0.05) 1px, transparent 1px);
+      background-size: 32px 32px;
+    }
+    .panel {
+      border-radius: 1.75rem;
+      border: 1px solid #e2e8f0;
+      background: #ffffff;
+      box-shadow: 0 20px 50px -12px rgba(15, 31, 71, 0.1);
+      position: relative;
+      overflow: hidden;
+    }
+    .panel::before {
+      content: "";
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, #fbbf24 0%, #2f6bef 45%, #15296b 100%);
+    }
+    .field-input {
+      width: 100%;
+      border-radius: 0.875rem;
+      border: 1.5px solid #e2e8f0;
+      padding: 0.65rem 1rem;
+      font-size: 0.9rem;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+      background-color: #f8fafc;
+    }
+    .field-input[data-input-error="true"] {
+      border-color: #ef4444;
+      box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12);
+    }
+    .field-input:focus {
+      outline: none;
+      border-color: #2f6bef;
+      box-shadow: 0 0 0 4px rgba(47, 107, 239, 0.12);
+      background-color: #ffffff;
+    }
+    .section-eyebrow {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.25em;
+      color: #2050c4;
+    }
+    .btn-primary {
+      border-radius: 1rem;
+      background-color: #0b1530;
+      color: #fff;
+      padding: 0.65rem 1.25rem;
+      font-size: 0.875rem;
+      font-weight: 600;
+      transition: transform 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    .btn-primary:hover {
+      background-color: #2050c4;
+      transform: translateY(-1px);
+      box-shadow: 0 12px 28px -8px rgba(32, 80, 196, 0.45);
+    }
+    .btn-secondary {
+      border-radius: 1rem;
+      border: 1.5px solid #e2e8f0;
+      padding: 0.6rem 1.1rem;
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: #1e293b;
+      transition: border-color 0.15s ease, background-color 0.15s ease;
+    }
+    .btn-secondary:hover {
+      border-color: #93c5fd;
+      background-color: #eff6ff;
+    }
+  </style>
 </head>
-<body class="min-h-screen bg-gray-50 text-gray-900">
+<body class="min-h-screen bg-grid bg-[#f4f7fd] text-slate-950 antialiased">
   <main class="mx-auto max-w-6xl px-4 py-8">
-    <header class="mb-6 rounded-xl border bg-white p-4">
-      <div class="flex flex-wrap items-center justify-between gap-3">
+
+    <header class="mb-7 overflow-hidden rounded-[1.75rem] border border-campus-900/10 bg-gradient-to-br from-campus-950 via-campus-800 to-campus-600 p-6 shadow-card-lg">
+      <div class="route-line mb-5 w-16"></div>
+      <div class="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 class="text-2xl font-semibold">Admin Page</h1>
-          <p id="admin-scope" class="text-sm text-gray-600"></p>
+          <p class="text-xs font-semibold uppercase tracking-[0.35em] text-signal">LASU Connect</p>
+          <h1 class="mt-2 font-display text-3xl font-semibold tracking-tight text-white">Admin Page</h1>
+          <p id="admin-scope" class="mt-2 text-sm text-blue-100/80"></p>
         </div>
-        <button id="logout-btn" class="rounded-lg border px-4 py-2 text-sm">Logout</button>
+        <button id="logout-btn" class="rounded-2xl border border-white/20 bg-white/10 px-5 py-2.5 text-sm font-medium text-white backdrop-blur transition hover:bg-white/20">Logout</button>
       </div>
     </header>
 
-    <section class="mb-6 rounded-xl border bg-white p-4">
-      <h2 class="text-lg font-semibold">Manage Timetable</h2>
-      <form id="timetable-form" class="mt-3 grid gap-3 md:grid-cols-3">
-        <input id="tt-course-code" class="rounded border px-3 py-2" placeholder="Course code">
-        <input id="tt-course-title" class="rounded border px-3 py-2" placeholder="Course title">
-        <select id="tt-day" class="rounded border px-3 py-2">
+    <section class="panel mb-6 p-6">
+      <p class="section-eyebrow">Scheduling</p>
+      <h2 class="mt-1 font-display text-xl font-semibold text-slate-950">Manage Timetable</h2>
+      <form id="timetable-form" class="mt-4 grid gap-3 md:grid-cols-3">
+        <input id="tt-course-code" class="field-input font-mono" placeholder="Course code">
+        <input id="tt-course-title" class="field-input" placeholder="Course title">
+        <select id="tt-day" class="field-input">
           <option>Monday</option><option>Tuesday</option><option>Wednesday</option><option>Thursday</option><option>Friday</option>
         </select>
-        <select id="tt-venue" class="rounded border px-3 py-2"></select>
-        <select id="tt-level" class="rounded border px-3 py-2"></select>
-        <select id="tt-semester" class="rounded border px-3 py-2"></select>
-        <select id="tt-department" class="rounded border px-3 py-2"></select>
-        <input id="tt-start" type="time" class="rounded border px-3 py-2">
-        <input id="tt-end" type="time" class="rounded border px-3 py-2">
-        <button class="rounded bg-black px-4 py-2 text-white">Add timetable entry</button>
+        <select id="tt-venue" class="field-input"></select>
+        <select id="tt-level" class="field-input"></select>
+        <select id="tt-semester" class="field-input"></select>
+        <select id="tt-department" class="field-input"></select>
+        <input id="tt-start" type="time" class="field-input">
+        <input id="tt-end" type="time" class="field-input">
+        <button class="btn-primary md:col-span-3">Add timetable entry</button>
       </form>
-      <p id="tt-feedback" class="mt-2 text-sm text-gray-700"></p>
+      <p id="tt-feedback" class="mt-3 text-sm font-medium text-slate-700"></p>
       <div id="timetable-list" class="mt-3 space-y-2"></div>
     </section>
 
-    <section class="mb-6 rounded-xl border bg-white p-4">
-      <h2 class="text-lg font-semibold">Manage Reports</h2>
-      <div id="report-list" class="mt-3 space-y-3"></div>
+    <section class="panel mb-6 p-6">
+      <p class="section-eyebrow">Complaints</p>
+      <h2 class="mt-1 font-display text-xl font-semibold text-slate-950">Manage Reports</h2>
+      <div id="report-list" class="mt-4 space-y-3"></div>
     </section>
 
-    <section class="mb-6 rounded-xl border bg-white p-4">
-      <h2 class="text-lg font-semibold">Publish Announcements</h2>
-      <form id="announcement-form" class="mt-3 grid gap-3 md:grid-cols-2">
-        <input id="announcement-title" class="rounded border px-3 py-2 md:col-span-2" placeholder="Title">
-        <textarea id="announcement-message" rows="3" class="rounded border px-3 py-2 md:col-span-2" placeholder="Message"></textarea>
-        <select id="announcement-level" class="rounded border px-3 py-2"></select>
-        <select id="announcement-semester" class="rounded border px-3 py-2"></select>
-        <select id="announcement-department" class="rounded border px-3 py-2"></select>
-        <button class="rounded bg-black px-4 py-2 text-white md:col-span-2">Publish announcement</button>
+    <section class="panel mb-6 p-6">
+      <p class="section-eyebrow">Broadcast</p>
+      <h2 class="mt-1 font-display text-xl font-semibold text-slate-950">Publish Announcements</h2>
+      <form id="announcement-form" class="mt-4 grid gap-3 md:grid-cols-2">
+        <input id="announcement-title" class="field-input md:col-span-2" placeholder="Title">
+        <textarea id="announcement-message" rows="3" class="field-input md:col-span-2" placeholder="Message"></textarea>
+        <select id="announcement-level" class="field-input"></select>
+        <select id="announcement-semester" class="field-input"></select>
+        <select id="announcement-department" class="field-input"></select>
+        <button class="btn-primary md:col-span-2">Publish announcement</button>
       </form>
-      <p id="announcement-feedback" class="mt-2 text-sm text-gray-700"></p>
+      <p id="announcement-feedback" class="mt-3 text-sm font-medium text-slate-700"></p>
     </section>
 
-    <section class="mb-6 rounded-xl border bg-white p-4">
-      <h2 class="text-lg font-semibold">Location Verification</h2>
-      <p class="mt-1 text-sm text-gray-600">Use this panel to calibrate destination pins. Verified pins are used for routing.</p>
-      <div class="mt-3 grid gap-3 md:grid-cols-2">
+    <section class="panel mb-6 p-6">
+      <p class="section-eyebrow">Wayfinding</p>
+      <h2 class="mt-1 font-display text-xl font-semibold text-slate-950">Location Verification</h2>
+      <p class="mt-1 text-sm text-slate-600">Use this panel to calibrate destination pins. Verified pins are used for routing.</p>
+      <div class="mt-4 grid gap-3 md:grid-cols-2">
         <div>
-          <label for="location-verify-select" class="mb-1 block text-sm font-medium">Location</label>
-          <select id="location-verify-select" class="w-full rounded border px-3 py-2"></select>
+          <label for="location-verify-select" class="mb-1.5 block text-sm font-semibold text-slate-700">Location</label>
+          <select id="location-verify-select" class="field-input"></select>
         </div>
         <div class="flex items-end">
-          <button id="location-open-google" class="w-full rounded border px-3 py-2 text-sm">Open in Google Maps</button>
+          <button id="location-open-google" class="btn-secondary w-full">Open in Google Maps</button>
         </div>
         <div>
-          <label for="location-verify-lat" class="mb-1 block text-sm font-medium">Latitude</label>
-          <input id="location-verify-lat" class="w-full rounded border px-3 py-2" placeholder="6.47...">
+          <label for="location-verify-lat" class="mb-1.5 block text-sm font-semibold text-slate-700">Latitude</label>
+          <input id="location-verify-lat" class="field-input font-mono" placeholder="6.47...">
         </div>
         <div>
-          <label for="location-verify-lng" class="mb-1 block text-sm font-medium">Longitude</label>
-          <input id="location-verify-lng" class="w-full rounded border px-3 py-2" placeholder="3.20...">
+          <label for="location-verify-lng" class="mb-1.5 block text-sm font-semibold text-slate-700">Longitude</label>
+          <input id="location-verify-lng" class="field-input font-mono" placeholder="3.20...">
         </div>
         <div>
-          <label for="location-verify-source" class="mb-1 block text-sm font-medium">Verification Source</label>
-          <input id="location-verify-source" class="w-full rounded border px-3 py-2" placeholder="google_maps_manual_pin">
+          <label for="location-verify-source" class="mb-1.5 block text-sm font-semibold text-slate-700">Verification Source</label>
+          <input id="location-verify-source" class="field-input" placeholder="google_maps_manual_pin">
         </div>
-        <label class="flex items-center gap-2 pt-7 text-sm">
-          <input id="location-verify-verified" type="checkbox" checked>
+        <label class="flex items-center gap-2 pt-7 text-sm font-medium text-slate-700">
+          <input id="location-verify-verified" type="checkbox" checked class="h-4 w-4 rounded border-slate-300 text-campus-600 focus:ring-campus-400">
           Mark as verified
         </label>
       </div>
-      <div class="mt-3 flex flex-wrap gap-2">
-        <button id="location-verify-save" class="rounded bg-black px-4 py-2 text-sm text-white">Save Pin</button>
-        <button id="location-verify-reset" class="rounded border px-4 py-2 text-sm">Reset to Seed Data</button>
-        <button id="location-use-map-pin" class="rounded border px-4 py-2 text-sm">Use Map Pin Coordinates</button>
+      <div class="mt-4 flex flex-wrap gap-2">
+        <button id="location-verify-save" class="btn-primary">Save Pin</button>
+        <button id="location-verify-reset" class="btn-secondary">Reset to Seed Data</button>
+        <button id="location-use-map-pin" class="btn-secondary">Use Map Pin Coordinates</button>
       </div>
-      <p id="location-verify-feedback" class="mt-2 text-sm text-gray-700"></p>
-      <div class="mt-3 rounded border bg-gray-50 p-2">
-        <p class="mb-2 text-xs text-gray-600">Click the map or drag the pin to set exact coordinates for the selected location.</p>
-        <div id="admin-pin-map" class="min-h-[340px] rounded border"></div>
+      <p id="location-verify-feedback" class="mt-3 text-sm font-medium text-slate-700"></p>
+      <div class="mt-4 rounded-2xl border border-blue-100 bg-blue-50/60 p-3">
+        <p class="mb-2 text-xs text-slate-600">Click the map or drag the pin to set exact coordinates for the selected location.</p>
+        <div id="admin-pin-map" class="min-h-[340px] rounded-2xl border border-slate-200"></div>
       </div>
-      <div class="mt-3">
-        <p class="text-sm font-medium">Pending Verification</p>
-        <div id="location-unverified-list" class="mt-2 space-y-1 text-sm text-gray-700"></div>
+      <div class="mt-4">
+        <p class="text-sm font-semibold text-slate-800">Pending Verification</p>
+        <div id="location-unverified-list" class="mt-2 space-y-1 text-sm text-slate-700"></div>
       </div>
     </section>
 
-    <section class="rounded-xl border bg-white p-4">
-      <h2 class="text-lg font-semibold">Notifications Flow</h2>
-      <div id="notifications-list" class="mt-3 space-y-2"></div>
+    <section class="panel p-6">
+      <p class="section-eyebrow">Activity</p>
+      <h2 class="mt-1 font-display text-xl font-semibold text-slate-950">Notifications Flow</h2>
+      <div id="notifications-list" class="mt-4 space-y-2"></div>
     </section>
   </main>
 
   <script src="data.js"></script>
+  <script src="supabase-config.js"></script>
   <script src="shared.js"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script src="admin.js"></script>

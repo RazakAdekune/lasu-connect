@@ -5,76 +5,306 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LASU Connect Login</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ['"Space Grotesk"', 'sans-serif'],
+            sans: ['Inter', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          },
+          colors: {
+            campus: {
+              950: '#0b1530',
+              900: '#0f1f47',
+              800: '#15296b',
+              700: '#1d3a8f',
+              600: '#2050c4',
+              500: '#2f6bef',
+              400: '#5b8bf5',
+            },
+            signal: '#fbbf24',
+          },
+          boxShadow: {
+            card: '0 20px 50px -12px rgba(15, 31, 71, 0.18)',
+            'card-lg': '0 30px 70px -15px rgba(15, 31, 71, 0.25)',
+          },
+        }
+      }
+    };
+  </script>
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    .route-line {
+      height: 4px;
+      background: linear-gradient(90deg, #fbbf24 0%, #2f6bef 45%, #15296b 100%);
+      border-radius: 999px;
+    }
+    .bg-grid {
+      background-image:
+        linear-gradient(rgba(15, 31, 71, 0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(15, 31, 71, 0.05) 1px, transparent 1px);
+      background-size: 32px 32px;
+    }
+    .field-input {
+      width: 100%;
+      border-radius: 0.875rem;
+      border: 1.5px solid #e2e8f0;
+      padding: 0.7rem 1rem;
+      font-size: 0.925rem;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+      background-color: #f8fafc;
+    }
+    .field-input[data-input-error="true"] {
+      border-color: #ef4444;
+      box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12);
+    }
+    .field-input:focus {
+      outline: none;
+      border-color: #2f6bef;
+      box-shadow: 0 0 0 4px rgba(47, 107, 239, 0.12);
+      background-color: #ffffff;
+    }
+    .field-label {
+      display: block;
+      margin-bottom: 0.4rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      color: #334155;
+    }
+    .role-toggle {
+      position: relative;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.25rem;
+      padding: 0.3rem;
+      border-radius: 1.25rem;
+      background-color: #eef2f9;
+      border: 1px solid #e2e8f0;
+    }
+    .role-toggle-btn {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 0.7rem 1rem;
+      border-radius: 1rem;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #475569;
+      transition: color 0.2s ease;
+      background: transparent;
+    }
+    .role-toggle-btn.is-active {
+      color: #0b1530;
+    }
+    .role-toggle-thumb {
+      position: absolute;
+      top: 0.3rem;
+      left: 0.3rem;
+      width: calc(50% - 0.35rem);
+      height: calc(100% - 0.6rem);
+      border-radius: 1rem;
+      background: #ffffff;
+      box-shadow: 0 8px 20px -6px rgba(15, 31, 71, 0.18);
+      transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .role-toggle-thumb.is-admin {
+      transform: translateX(100%);
+    }
+    .login-form-panel {
+      display: none;
+    }
+    .login-form-panel.is-active {
+      display: block;
+    }
+  </style>
 </head>
-<body class="min-h-screen bg-gray-50 text-gray-900">
-  <main class="mx-auto max-w-5xl px-4 py-12">
-    <h1 class="text-3xl font-semibold">LASU Connect Login</h1>
-    <p class="mt-2 text-sm text-gray-600">Sign in as student or admin.</p>
+<body class="min-h-screen bg-grid bg-[#f4f7fd] text-slate-950 antialiased">
+  <main class="mx-auto max-w-5xl px-4 py-10 sm:py-14">
 
-    <div class="mt-8 grid gap-6 lg:grid-cols-2">
-      <form id="student-login" class="rounded-2xl border bg-white p-6">
-        <h2 class="text-xl font-semibold">Student Login</h2>
-        <div class="mt-4">
-          <label for="student-name" class="mb-2 block text-sm font-medium">Full name</label>
-          <input id="student-name" class="w-full rounded-lg border px-3 py-2">
+    <div class="mb-10 overflow-hidden rounded-[2rem] border border-campus-900/10 bg-gradient-to-br from-campus-950 via-campus-800 to-campus-600 p-7 shadow-card-lg sm:p-9">
+      <div class="route-line mb-6 w-16"></div>
+      <div class="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.35em] text-signal">LASU Connect</p>
+          <h1 class="mt-3 font-display text-4xl font-semibold tracking-tight text-white sm:text-5xl">Sign in</h1>
+          <p class="mt-3 max-w-md text-sm text-blue-100/80">Pick your lane below — student or admin — to reach your campus dashboard.</p>
         </div>
-        <div class="mt-4">
-          <label for="student-matric" class="mb-2 block text-sm font-medium">Matric number</label>
-          <input id="student-matric" class="w-full rounded-lg border px-3 py-2">
+        <div class="hidden rounded-2xl border border-white/15 bg-white/5 px-4 py-3 backdrop-blur sm:block">
+          <p class="font-mono text-[0.65rem] uppercase tracking-widest text-blue-200/70">Status</p>
+          <p class="mt-1 flex items-center gap-2 text-sm font-medium text-white">
+            <span class="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_0_3px_rgba(52,211,153,0.25)]"></span>
+            Campus network online
+          </p>
         </div>
-        <div class="mt-4">
-          <label for="student-faculty" class="mb-2 block text-sm font-medium">Faculty</label>
-          <select id="student-faculty" class="w-full rounded-lg border px-3 py-2"></select>
-        </div>
-        <div class="mt-4">
-          <label for="student-department" class="mb-2 block text-sm font-medium">Department</label>
-          <select id="student-department" class="w-full rounded-lg border px-3 py-2"></select>
-        </div>
-        <div class="mt-4">
-          <label for="student-level" class="mb-2 block text-sm font-medium">Level</label>
-          <select id="student-level" class="w-full rounded-lg border px-3 py-2"></select>
-        </div>
-        <div class="mt-4">
-          <label for="student-semester" class="mb-2 block text-sm font-medium">Semester</label>
-          <select id="student-semester" class="w-full rounded-lg border px-3 py-2"></select>
-        </div>
-        <button type="submit" class="mt-6 w-full rounded-lg bg-black px-4 py-2 text-white">Continue as student</button>
-      </form>
-
-      <form id="admin-login" class="rounded-2xl border bg-white p-6">
-        <h2 class="text-xl font-semibold">Admin Login</h2>
-        <div class="mt-4">
-          <label for="admin-username" class="mb-2 block text-sm font-medium">Username</label>
-          <input id="admin-username" class="w-full rounded-lg border px-3 py-2">
-        </div>
-        <div class="mt-4">
-          <label for="admin-password" class="mb-2 block text-sm font-medium">Password</label>
-          <input id="admin-password" type="password" class="w-full rounded-lg border px-3 py-2">
-        </div>
-        <div class="mt-4">
-          <label for="admin-faculty" class="mb-2 block text-sm font-medium">Faculty</label>
-          <select id="admin-faculty" class="w-full rounded-lg border px-3 py-2"></select>
-        </div>
-        <div class="mt-4">
-          <label for="admin-department" class="mb-2 block text-sm font-medium">Department</label>
-          <select id="admin-department" class="w-full rounded-lg border px-3 py-2"></select>
-        </div>
-        <div class="mt-4 rounded-lg border bg-gray-50 p-3 text-sm">
-          <p class="font-medium">Admin Login Helper</p>
-          <p class="mt-1 text-gray-700">Username: <span id="admin-helper-username" class="font-mono text-xs"></span></p>
-          <p class="text-gray-700">Password: <span id="admin-helper-password" class="font-mono text-xs"></span></p>
-          <button id="admin-helper-fill" type="button" class="mt-2 rounded border border-black px-3 py-1 text-xs">Use these credentials</button>
-        </div>
-        <button type="submit" class="mt-6 w-full rounded-lg border border-black px-4 py-2">Login as admin</button>
-      </form>
+      </div>
     </div>
 
-    <p id="login-feedback" class="mt-5 text-sm text-red-600"></p>
+    <div class="role-toggle mb-7 max-w-md">
+      <div id="role-toggle-thumb" class="role-toggle-thumb"></div>
+      <button type="button" id="role-toggle-student" class="role-toggle-btn is-active">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 14l9-5-9-5-9 5 9 5z" />
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 14l6.16-3.422A12.083 12.083 0 0118 19.5L12 22l-6-2.5a12.083 12.083 0 01-.16-8.922L12 14z" />
+        </svg>
+        Student
+      </button>
+      <button type="button" id="role-toggle-admin" class="role-toggle-btn">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 10-8 0v2" />
+        </svg>
+        Admin
+      </button>
+    </div>
+
+    <div class="grid gap-7">
+
+      <form id="student-login" class="login-form-panel is-active group relative overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white p-7 shadow-card transition hover:shadow-card-lg">
+        <div class="route-line absolute inset-x-0 top-0 h-1.5 rounded-none"></div>
+        <div class="mb-6 flex items-center justify-between">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-[0.25em] text-campus-600">Lane 01</p>
+            <h2 class="mt-1 font-display text-2xl font-semibold text-slate-950">Student Login</h2>
+          </div>
+          <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-campus-700">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 14l9-5-9-5-9 5 9 5z" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 14l6.16-3.422A12.083 12.083 0 0118 19.5L12 22l-6-2.5a12.083 12.083 0 01-.16-8.922L12 14z" />
+            </svg>
+          </div>
+        </div>
+
+        <div class="space-y-4">
+          <div>
+            <label for="student-name" class="field-label">Full name</label>
+            <input id="student-name" class="field-input">
+          </div>
+          <div>
+            <label for="student-matric" class="field-label">Matric number</label>
+            <input id="student-matric" class="field-input font-mono">
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div class="col-span-2">
+              <label for="student-faculty" class="field-label">Faculty</label>
+              <select id="student-faculty" class="field-input"></select>
+            </div>
+            <div class="col-span-2">
+              <label for="student-department" class="field-label">Department</label>
+              <select id="student-department" class="field-input"></select>
+            </div>
+            <div>
+              <label for="student-level" class="field-label">Level</label>
+              <select id="student-level" class="field-input"></select>
+            </div>
+            <div>
+              <label for="student-semester" class="field-label">Semester</label>
+              <select id="student-semester" class="field-input"></select>
+            </div>
+          </div>
+        </div>
+
+        <button type="submit" class="mt-7 w-full rounded-2xl bg-campus-950 px-4 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-campus-600 hover:shadow-card active:translate-y-0">
+          Continue as student
+        </button>
+      </form>
+
+      <form id="admin-login" class="login-form-panel group relative overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white p-7 shadow-card transition hover:shadow-card-lg">
+        <div class="route-line absolute inset-x-0 top-0 h-1.5 rounded-none"></div>
+        <div class="mb-6 flex items-center justify-between">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-[0.25em] text-campus-600">Lane 02</p>
+            <h2 class="mt-1 font-display text-2xl font-semibold text-slate-950">Admin Login</h2>
+          </div>
+          <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-600">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 10-8 0v2" />
+            </svg>
+          </div>
+        </div>
+
+        <div class="space-y-4">
+          <div>
+            <label for="admin-username" class="field-label">Username</label>
+            <input id="admin-username" class="field-input">
+          </div>
+          <div>
+            <label for="admin-password" class="field-label">Password</label>
+            <input id="admin-password" type="password" class="field-input">
+          </div>
+          <div>
+            <label for="admin-faculty" class="field-label">Faculty</label>
+            <select id="admin-faculty" class="field-input"></select>
+          </div>
+          <div>
+            <label for="admin-department" class="field-label">Department</label>
+            <select id="admin-department" class="field-input"></select>
+          </div>
+
+          <div class="rounded-2xl border border-amber-200/70 bg-amber-50/60 p-4">
+            <p class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-amber-700">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Admin login helper
+            </p>
+            <p class="mt-2 text-sm text-slate-700">Username: <span id="admin-helper-username" class="rounded bg-white px-1.5 py-0.5 font-mono text-xs text-slate-900"></span></p>
+            <p class="mt-1 text-sm text-slate-700">Password: <span id="admin-helper-password" class="rounded bg-white px-1.5 py-0.5 font-mono text-xs text-slate-900"></span></p>
+            <button id="admin-helper-fill" type="button" class="mt-3 rounded-xl border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium text-amber-700 transition hover:bg-amber-100">Use these credentials</button>
+          </div>
+        </div>
+
+        <button type="submit" class="mt-7 w-full rounded-2xl bg-gradient-to-r from-campus-700 to-campus-500 px-4 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-card active:translate-y-0">
+          Login as admin
+        </button>
+      </form>
+
+    </div>
+
+    <p id="login-feedback" class="mt-6 text-sm font-medium text-red-700"></p>
   </main>
 
   <script src="data.js"></script>
   <script src="admin-accounts.js"></script>
+  <script src="supabase-config.js"></script>
   <script src="shared.js"></script>
+  <script>
+    (function () {
+      var studentBtn = document.getElementById('role-toggle-student');
+      var adminBtn = document.getElementById('role-toggle-admin');
+      var thumb = document.getElementById('role-toggle-thumb');
+      var studentForm = document.getElementById('student-login');
+      var adminForm = document.getElementById('admin-login');
+
+      function showStudent() {
+        studentBtn.classList.add('is-active');
+        adminBtn.classList.remove('is-active');
+        thumb.classList.remove('is-admin');
+        studentForm.classList.add('is-active');
+        adminForm.classList.remove('is-active');
+      }
+
+      function showAdmin() {
+        adminBtn.classList.add('is-active');
+        studentBtn.classList.remove('is-active');
+        thumb.classList.add('is-admin');
+        adminForm.classList.add('is-active');
+        studentForm.classList.remove('is-active');
+      }
+
+      studentBtn.addEventListener('click', showStudent);
+      adminBtn.addEventListener('click', showAdmin);
+    })();
+  </script>
   <script src="login.js"></script>
 </body>
 </html>
