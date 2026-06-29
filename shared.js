@@ -50,6 +50,7 @@ window.LASU_SHARED = (function createSharedHelpers() {
         method,
         headers: {
           apikey: config.apiKey,
+          Authorization: `Bearer ${config.apiKey}`,
           Accept: "application/json"
         }
       };
@@ -149,6 +150,171 @@ window.LASU_SHARED = (function createSharedHelpers() {
     } catch (_error) {
       return null;
     }
+  }
+
+  const STUDENTS_KEY = "lasu-connect-students-v1";
+
+  function normalizeMatric(matric) {
+    return String(matric || "").trim().toLowerCase().replace(/\s+/g, "");
+  }
+
+  function loadStudents() {
+    try {
+      const parsed = JSON.parse(window.localStorage.getItem(STUDENTS_KEY) || "[]");
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (_error) {
+      return [];
+    }
+  }
+
+  function saveStudents(students) {
+    window.localStorage.setItem(STUDENTS_KEY, JSON.stringify(Array.isArray(students) ? students : []));
+  }
+
+  function findStudentByMatric(matric) {
+    const key = normalizeMatric(matric);
+    if (!key) {
+      return null;
+    }
+    return loadStudents().find((student) => normalizeMatric(student.matric) === key) || null;
+  }
+
+  function bytesToHex(buffer) {
+    return Array.from(new Uint8Array(buffer))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+  }
+
+  // Lightweight client-side hashing. Note: localStorage accounts live only in
+  // this browser and are not a substitute for real server-side authentication.
+  async function hashPassword(password, salt) {
+    const text = `${salt}::${String(password || "")}`;
+    if (window.crypto && window.crypto.subtle) {
+      const data = new TextEncoder().encode(text);
+      const digest = await window.crypto.subtle.digest("SHA-256", data);
+      return bytesToHex(digest);
+    }
+    // Fallback for very old browsers without SubtleCrypto.
+    let hash = 0;
+    for (let i = 0; i < text.length; i += 1) {
+      hash = (hash << 5) - hash + text.charCodeAt(i);
+      hash |= 0;
+    }
+    return `legacy_${hash}`;
+  }
+
+  function makeSalt() {
+    if (window.crypto && window.crypto.getRandomValues) {
+      return bytesToHex(window.crypto.getRandomValues(new Uint8Array(16)));
+    }
+    return `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  }
+
+  function normalizeAuthResult(data) {
+    if (!data || typeof data !== "object") {
+      return { ok: false, error: "unknown" };
+    }
+    return data;
+  }
+
+  async function registerStudent(profile) {
+    const matric = String(profile.matric || "").trim();
+    if (!matric) {
+      return { ok: false, error: "matric_required" };
+    }
+
+    if (isSupabaseEnabled()) {
+      const { data, error } = await supabaseRest("rpc/register_student", "POST", {
+        p_matric: matric,
+        p_name: String(profile.name || "").trim(),
+        p_faculty: profile.faculty || "",
+        p_department: profile.department || "",
+        p_level: profile.level || "",
+        p_semester: profile.semester || "",
+        p_password: String(profile.password || "")
+      });
+      if (error) {
+        return { ok: false, error: "network" };
+      }
+      return normalizeAuthResult(data);
+    }
+
+    if (findStudentByMatric(matric)) {
+      return { ok: false, error: "matric_taken" };
+    }
+    const salt = makeSalt();
+    const passwordHash = await hashPassword(profile.password, salt);
+    const account = {
+      id: `student-${normalizeMatric(matric)}`,
+      name: String(profile.name || "").trim(),
+      matric,
+      faculty: profile.faculty || "",
+      department: profile.department || "",
+      level: profile.level || "",
+      semester: profile.semester || "",
+      salt,
+      passwordHash,
+      createdAt: new Date().toISOString()
+    };
+    const students = loadStudents();
+    students.push(account);
+    saveStudents(students);
+    return { ok: true, student: account };
+  }
+
+  async function verifyStudent(matric, password) {
+    if (isSupabaseEnabled()) {
+      const { data, error } = await supabaseRest("rpc/verify_student", "POST", {
+        p_matric: String(matric || "").trim(),
+        p_password: String(password || "")
+      });
+      if (error) {
+        return { ok: false, error: "network" };
+      }
+      return normalizeAuthResult(data);
+    }
+
+    const account = findStudentByMatric(matric);
+    if (!account) {
+      return { ok: false, error: "not_found" };
+    }
+    const candidate = await hashPassword(password, account.salt);
+    if (candidate !== account.passwordHash) {
+      return { ok: false, error: "wrong_password" };
+    }
+    return { ok: true, student: account };
+  }
+
+  async function verifyAdmin(username, password, faculty, department) {
+    const cleanUser = String(username || "").trim();
+    if (isSupabaseEnabled()) {
+      const { data, error } = await supabaseRest("rpc/verify_admin", "POST", {
+        p_username: cleanUser,
+        p_password: String(password || ""),
+        p_faculty: faculty || "",
+        p_department: department || ""
+      });
+      if (error) {
+        return { ok: false, error: "network" };
+      }
+      return normalizeAuthResult(data);
+    }
+
+    // Offline fallback: match the app's built-in generated admin list.
+    const admins = window.LASU_DATA.adminUsers || [];
+    const match = admins.find((admin) =>
+      admin.username === cleanUser &&
+      admin.password === String(password || "") &&
+      admin.faculty === faculty &&
+      admin.department === department
+    );
+    if (!match) {
+      return { ok: false, error: "not_found" };
+    }
+    return {
+      ok: true,
+      admin: { username: match.username, name: match.name, faculty: match.faculty, department: match.department }
+    };
   }
 
   function requireRole(expectedRole) {
@@ -469,6 +635,12 @@ window.LASU_SHARED = (function createSharedHelpers() {
     clone,
     loadAuth,
     requireRole,
+    normalizeMatric,
+    loadStudents,
+    findStudentByMatric,
+    registerStudent,
+    verifyStudent,
+    verifyAdmin,
     getDepartmentsForFaculty,
     getFacultyForDepartment,
     getDefaultSemester,

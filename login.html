@@ -127,6 +127,20 @@
     .login-form-panel.is-active {
       display: block;
     }
+    .student-subpanel {
+      display: none;
+    }
+    .student-subpanel.is-active {
+      display: block;
+    }
+    .student-subtoggle-btn {
+      color: #475569;
+    }
+    .student-subtoggle-btn.is-active {
+      background: #ffffff;
+      color: #0b1530;
+      box-shadow: 0 8px 20px -6px rgba(15, 31, 71, 0.18);
+    }
   </style>
 </head>
 <body class="min-h-screen bg-grid bg-[#f4f7fd] text-slate-950 antialiased">
@@ -169,12 +183,12 @@
 
     <div class="grid gap-7">
 
-      <form id="student-login" class="login-form-panel is-active group relative overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white p-7 shadow-card transition hover:shadow-card-lg">
+      <div id="student-lane" class="login-form-panel is-active group relative overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white p-7 shadow-card transition hover:shadow-card-lg">
         <div class="route-line absolute inset-x-0 top-0 h-1.5 rounded-none"></div>
         <div class="mb-6 flex items-center justify-between">
           <div>
             <p class="text-xs font-semibold uppercase tracking-[0.25em] text-campus-600">Lane 01</p>
-            <h2 class="mt-1 font-display text-2xl font-semibold text-slate-950">Student Login</h2>
+            <h2 id="student-lane-title" class="mt-1 font-display text-2xl font-semibold text-slate-950">Student Login</h2>
           </div>
           <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-campus-700">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
@@ -184,39 +198,71 @@
           </div>
         </div>
 
-        <div class="space-y-4">
-          <div>
-            <label for="student-name" class="field-label">Full name</label>
-            <input id="student-name" class="field-input">
-          </div>
-          <div>
-            <label for="student-matric" class="field-label">Matric number</label>
-            <input id="student-matric" class="field-input font-mono">
-          </div>
-          <div class="grid grid-cols-2 gap-4">
-            <div class="col-span-2">
-              <label for="student-faculty" class="field-label">Faculty</label>
-              <select id="student-faculty" class="field-input"></select>
-            </div>
-            <div class="col-span-2">
-              <label for="student-department" class="field-label">Department</label>
-              <select id="student-department" class="field-input"></select>
-            </div>
-            <div>
-              <label for="student-level" class="field-label">Level</label>
-              <select id="student-level" class="field-input"></select>
-            </div>
-            <div>
-              <label for="student-semester" class="field-label">Semester</label>
-              <select id="student-semester" class="field-input"></select>
-            </div>
-          </div>
+        <div class="student-subtoggle mb-6 grid grid-cols-2 gap-1 rounded-2xl border border-slate-200 bg-slate-100 p-1">
+          <button type="button" id="student-tab-login" class="student-subtoggle-btn is-active rounded-xl px-3 py-2 text-sm font-semibold transition">Log in</button>
+          <button type="button" id="student-tab-signup" class="student-subtoggle-btn rounded-xl px-3 py-2 text-sm font-semibold transition">Sign up</button>
         </div>
 
-        <button type="submit" class="mt-7 w-full rounded-2xl bg-campus-950 px-4 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-campus-600 hover:shadow-card active:translate-y-0">
-          Continue as student
-        </button>
-      </form>
+        <form id="student-login" class="student-subpanel is-active">
+          <div class="space-y-4">
+            <div>
+              <label for="login-matric" class="field-label">Matric number</label>
+              <input id="login-matric" class="field-input font-mono" autocomplete="username">
+            </div>
+            <div>
+              <label for="login-password" class="field-label">Password</label>
+              <input id="login-password" type="password" class="field-input" autocomplete="current-password">
+            </div>
+          </div>
+          <button type="submit" class="mt-7 w-full rounded-2xl bg-campus-950 px-4 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-campus-600 hover:shadow-card active:translate-y-0">
+            Log in
+          </button>
+          <p class="mt-4 text-center text-sm text-slate-500">New student? <button type="button" id="student-go-signup" class="font-semibold text-campus-600 hover:underline">Create an account</button></p>
+        </form>
+
+        <form id="student-signup" class="student-subpanel">
+          <div class="space-y-4">
+            <div>
+              <label for="signup-name" class="field-label">Full name</label>
+              <input id="signup-name" class="field-input" autocomplete="name">
+            </div>
+            <div>
+              <label for="signup-matric" class="field-label">Matric number</label>
+              <input id="signup-matric" class="field-input font-mono" autocomplete="username">
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div class="col-span-2">
+                <label for="signup-faculty" class="field-label">Faculty</label>
+                <select id="signup-faculty" class="field-input"></select>
+              </div>
+              <div class="col-span-2">
+                <label for="signup-department" class="field-label">Department</label>
+                <select id="signup-department" class="field-input"></select>
+              </div>
+              <div>
+                <label for="signup-level" class="field-label">Level</label>
+                <select id="signup-level" class="field-input"></select>
+              </div>
+              <div>
+                <label for="signup-semester" class="field-label">Semester</label>
+                <select id="signup-semester" class="field-input"></select>
+              </div>
+            </div>
+            <div>
+              <label for="signup-password" class="field-label">Password</label>
+              <input id="signup-password" type="password" class="field-input" autocomplete="new-password">
+            </div>
+            <div>
+              <label for="signup-password-confirm" class="field-label">Confirm password</label>
+              <input id="signup-password-confirm" type="password" class="field-input" autocomplete="new-password">
+            </div>
+          </div>
+          <button type="submit" class="mt-7 w-full rounded-2xl bg-campus-950 px-4 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-campus-600 hover:shadow-card active:translate-y-0">
+            Create account
+          </button>
+          <p class="mt-4 text-center text-sm text-slate-500">Already have an account? <button type="button" id="student-go-login" class="font-semibold text-campus-600 hover:underline">Log in</button></p>
+        </form>
+      </div>
 
       <form id="admin-login" class="login-form-panel group relative overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white p-7 shadow-card transition hover:shadow-card-lg">
         <div class="route-line absolute inset-x-0 top-0 h-1.5 rounded-none"></div>
@@ -282,14 +328,14 @@
       var studentBtn = document.getElementById('role-toggle-student');
       var adminBtn = document.getElementById('role-toggle-admin');
       var thumb = document.getElementById('role-toggle-thumb');
-      var studentForm = document.getElementById('student-login');
+      var studentLane = document.getElementById('student-lane');
       var adminForm = document.getElementById('admin-login');
 
       function showStudent() {
         studentBtn.classList.add('is-active');
         adminBtn.classList.remove('is-active');
         thumb.classList.remove('is-admin');
-        studentForm.classList.add('is-active');
+        studentLane.classList.add('is-active');
         adminForm.classList.remove('is-active');
       }
 
@@ -298,7 +344,7 @@
         studentBtn.classList.remove('is-active');
         thumb.classList.add('is-admin');
         adminForm.classList.add('is-active');
-        studentForm.classList.remove('is-active');
+        studentLane.classList.remove('is-active');
       }
 
       studentBtn.addEventListener('click', showStudent);

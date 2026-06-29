@@ -398,11 +398,21 @@ function highlightDestination(name) {
   });
 }
 
+let leafletRetryCount = 0;
 function renderMap() {
   if (typeof window.L === "undefined") {
-    document.getElementById("map-grid").innerHTML = `<div class="rounded-xl border border-line bg-white p-4 text-sm text-slate">Map library could not load. Check internet and refresh.</div>`;
+    // Leaflet may still be downloading from the CDN. Retry a few times before
+    // giving up, so a slow connection doesn't permanently show an error.
+    if (leafletRetryCount < 10) {
+      leafletRetryCount += 1;
+      document.getElementById("map-grid").innerHTML = `<div class="rounded-xl border border-line bg-white p-4 text-sm text-slate">Loading map…</div>`;
+      window.setTimeout(renderMap, 500);
+      return;
+    }
+    document.getElementById("map-grid").innerHTML = `<div class="rounded-xl border border-line bg-white p-4 text-sm text-slate">Map library could not load. Check your internet connection (the map needs access to unpkg.com and openstreetmap.org) and refresh.</div>`;
     return;
   }
+  leafletRetryCount = 0;
   initializeLeafletMap();
   const prevStart = routeStartSelect.value;
   const prevDest = routeDestinationSelect.value;
@@ -430,7 +440,14 @@ function renderMap() {
   }
   startLiveLocationWatch();
   drawSelectedRoute();
+  refreshMapSize();
 }
+
+window.addEventListener("resize", () => {
+  if (mapInstance && !document.getElementById("view-map").classList.contains("hidden")) {
+    mapInstance.invalidateSize();
+  }
+});
 
 async function drawSelectedRoute() {
   initializeLeafletMap();
@@ -521,8 +538,20 @@ function setActiveView(viewName) {
   });
   if (viewName === "map") {
     renderMap();
-    if (mapInstance) window.setTimeout(() => mapInstance.invalidateSize(), 150);
+    refreshMapSize();
   }
+}
+
+// A freshly revealed Leaflet map often renders blank/gray until it is told to
+// re-measure its (now visible) container. Fire a few passes to cover slow
+// layout/tile settling on both desktop and mobile.
+function refreshMapSize() {
+  if (!mapInstance) return;
+  [0, 150, 400, 800].forEach((delay) => {
+    window.setTimeout(() => {
+      if (mapInstance) mapInstance.invalidateSize();
+    }, delay);
+  });
 }
 
 function bindEvents() {
