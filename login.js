@@ -2,7 +2,6 @@ const AUTH_KEY = window.LASU_SHARED.AUTH_KEY;
 const levels = window.LASU_DATA.levels;
 const semesters = window.LASU_DATA.semesters || [window.LASU_SHARED.getDefaultSemester()];
 const faculties = window.LASU_DATA.faculties || [];
-const admins = window.LASU_DATA.adminUsers || [];
 
 // Student login fields
 const loginMatric = document.getElementById("login-matric");
@@ -23,9 +22,6 @@ const adminFaculty = document.getElementById("admin-faculty");
 const adminDepartment = document.getElementById("admin-department");
 const adminUsernameInput = document.getElementById("admin-username");
 const adminPasswordInput = document.getElementById("admin-password");
-const adminHelperUsername = document.getElementById("admin-helper-username");
-const adminHelperPassword = document.getElementById("admin-helper-password");
-const adminHelperFillButton = document.getElementById("admin-helper-fill");
 
 const feedback = document.getElementById("login-feedback");
 const studentLoginForm = document.getElementById("student-login");
@@ -52,7 +48,6 @@ function initializeLoginForm() {
   signupSemester.value = window.LASU_SHARED.getDefaultSemester();
   renderDepartments(signupDepartment, signupFaculty.value);
   renderDepartments(adminDepartment, adminFaculty.value);
-  renderAdminHelper();
 }
 
 function buildStudentInitials(name) {
@@ -272,44 +267,10 @@ async function handleAdminLogin(event) {
   window.location.href = "admin.html";
 }
 
-function currentAdminMatch() {
-  return admins.find((admin) =>
-    admin.faculty === adminFaculty.value &&
-    admin.department === adminDepartment.value
-  ) || null;
-}
-
-function renderAdminHelper() {
-  const match = currentAdminMatch();
-  if (!match) {
-    adminHelperUsername.textContent = "-";
-    adminHelperPassword.textContent = "-";
-    adminHelperFillButton.disabled = true;
-    adminHelperFillButton.classList.add("opacity-60");
-    return;
-  }
-  adminHelperUsername.textContent = match.username;
-  adminHelperPassword.textContent = match.password;
-  adminHelperFillButton.disabled = false;
-  adminHelperFillButton.classList.remove("opacity-60");
-}
-
-function applyAdminHelperCredentials() {
-  const match = currentAdminMatch();
-  if (!match) return;
-  adminUsernameInput.value = match.username;
-  adminPasswordInput.value = match.password;
-}
-
 initializeLoginForm();
 
 signupFaculty.addEventListener("change", () => renderDepartments(signupDepartment, signupFaculty.value));
-adminFaculty.addEventListener("change", () => {
-  renderDepartments(adminDepartment, adminFaculty.value);
-  renderAdminHelper();
-});
-adminDepartment.addEventListener("change", renderAdminHelper);
-adminHelperFillButton.addEventListener("click", applyAdminHelperCredentials);
+adminFaculty.addEventListener("change", () => renderDepartments(adminDepartment, adminFaculty.value));
 
 studentTabLogin.addEventListener("click", showStudentLogin);
 studentTabSignup.addEventListener("click", showStudentSignup);
